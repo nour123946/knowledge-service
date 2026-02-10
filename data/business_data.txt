@@ -1,0 +1,30 @@
+Produit : Puma RS-X
+Prix : 310 TND
+Disponibilité : En stock
+Livraison : 72h
+
+Produit : Converse Chuck Taylor
+Prix : 190 TND
+Disponibilité : En stock
+Livraison : 48h
+
+Produit : Adidas Ultraboost
+Prix : 420 TND
+Disponibilité : En stock
+Livraison : 48h
+
+Produit : New Balance 574
+Prix : 260 TND
+Disponibilité : Rupture de stock
+Livraison : 3 jours
+
+Service : Livraison Express
+Délai : 24h
+Frais : 15 TND
+
+Service : Retours
+Délai : 7 jours après achat
+Condition : Produit non utilisé avec boîte
+
+Localisation magasin : Monastir Centre Ville
+Paiement accepté : Carte bancaire, Espèces, Paiement à la livraison
