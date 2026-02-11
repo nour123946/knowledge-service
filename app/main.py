@@ -1,18 +1,24 @@
-# app/main.py
+# =====================================================
+# 📦 IMPORTS
+# =====================================================
 from fastapi import FastAPI, UploadFile, File
 import shutil
 import os
 from dotenv import load_dotenv
+import requests
 
-# -------------------------
-# Load ENV variables (FIRST)
-# -------------------------
+# =====================================================
+# 🔐 LOAD ENV VARIABLES
+# =====================================================
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 
-# -------------------------
-# Internal modules
-# -------------------------
+# =====================================================
+# 🧠 INTERNAL AI MODULES
+# =====================================================
 from app.ingestion.pipeline import ingest_file
 from app.embeddings.hf_provider import embed_texts
 from app.vectorstore.chroma_store import search_chunks
@@ -23,10 +29,10 @@ from app.core.memory import add_message
 from app.core.escalation import compute_confidence, should_escalate
 from app.core.entities import extract_entities
 
-# -------------------------
-# App Init
-# -------------------------
-app = FastAPI(title="Knowledge Service")
+# =====================================================
+# 🚀 FASTAPI INIT
+# =====================================================
+app = FastAPI(title="Knowledge Service AI")
 
 UPLOAD_DIR = "uploaded_docs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -38,9 +44,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 def health():
     return {"status": "Knowledge Service Running 🚀"}
 
-
 # =====================================================
-# 🟢 CB-2 : DOCUMENT UPLOAD + INDEXING
+# 📄 DOCUMENT UPLOAD + INDEXING (RAG)
 # =====================================================
 @app.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
@@ -57,18 +62,16 @@ async def upload_document(file: UploadFile = File(...)):
         "chunks_indexed": result["chunks_indexed"]
     }
 
-
 # =====================================================
-# 🟢 CB-2 : STATIC INGEST (TEST)
+# 🔎 STATIC INGEST TEST
 # =====================================================
 @app.post("/ingest")
 def ingest():
     result = ingest_file("data/business_data.txt")
     return result
 
-
 # =====================================================
-# 🟢 CB-2 : VECTOR SEARCH (RAG Retrieval)
+# 🔍 VECTOR SEARCH (RAG)
 # =====================================================
 @app.post("/search")
 def search(query: str):
@@ -76,82 +79,87 @@ def search(query: str):
     results = search_chunks(embedding, top_k=5)
     return {"results": results}
 
-
 # =====================================================
-# 🟢 CB-3 : INTENT CLASSIFICATION
+# 🧠 INTENT CLASSIFICATION
 # =====================================================
 @app.post("/intent")
 def detect_intent(query: str):
     intent = classify_intent(query)
     return {"intent": intent}
 
-
 # =====================================================
-# 🟢 CB-7 : MEMORY + CB-2/CB-3 + LLM
+# 🤖 MAIN AI PIPELINE (RAG + MEMORY + LLM)
 # =====================================================
-
-
-
 @app.post("/ask")
 def ask(query: str, session_id: str = "default", low_conf_history: int = 0):
 
-    # 1️⃣ Intent detection
+    # 1️⃣ Detect user intent
     intent = classify_intent(query)
 
-    # 2️⃣ Retrieve knowledge (RAG)
+    # 2️⃣ Retrieve knowledge from vector DB
     embedding = embed_texts([query])[0]
     results = search_chunks(embedding, top_k=5)
 
-    # 🆕 3️⃣ ENTITY EXTRACTION (SMART)
+    # 3️⃣ Extract entities dynamically (product, service, etc.)
     entities = extract_entities(query, results)
 
-    # 4️⃣ Generate answer using memory
+    # 4️⃣ Generate answer using LLM + memory
     answer = generate_response(query, results, session_id=session_id)
 
-    # 5️⃣ Save memory
+    # 5️⃣ Save conversation history
     add_message(session_id, "user", query)
     add_message(session_id, "assistant", answer)
 
-    # 6️⃣ Confidence score
+    # 6️⃣ Compute AI confidence
     confidence = compute_confidence(results, answer, intent)
 
-    # 7️⃣ Escalation decision
+    # 7️⃣ Decide if human agent needed
     escalate = should_escalate(query, confidence, answer, low_conf_history)
 
     return {
         "intent": intent,
-        "entities": entities,             
+        "entities": entities,
         "retrieved_knowledge": results,
         "final_answer": answer,
         "confidence_score": confidence,
         "needs_human_agent": escalate
     }
 
+# =====================================================
+# 📲 WHATSAPP WEBHOOK VERIFICATION (REQUIRED BY META)
+# =====================================================
+@app.get("/webhook/whatsapp")
+def verify_webhook(hub_mode: str = None, hub_challenge: str = None, hub_verify_token: str = None):
+    """
+    Meta sends this GET request to verify your server.
+    You MUST return hub.challenge if token matches.
+    """
+    if hub_mode == "subscribe" and hub_verify_token == VERIFY_TOKEN:
+        return int(hub_challenge)
+    return {"error": "Verification failed"}
 
-
-    
-import requests
-
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
-PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
-
+# =====================================================
+# 💬 WHATSAPP MESSAGE HANDLER
+# =====================================================
 @app.post("/webhook/whatsapp")
 async def whatsapp_webhook(payload: dict):
 
+    # Ignore other Meta events
+    if "entry" not in payload:
+        return {"status": "ignored"}
+
     try:
-        # 1️⃣ Extraire message utilisateur
+        # 1️⃣ Extract user message
         message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
         user_message = message["text"]["body"]
         user_phone = message["from"]
 
-        # 2️⃣ Appeler ton IA (endpoint /ask)
+        # 2️⃣ Call your AI
         ai_response = ask(query=user_message, session_id=user_phone)
-
         final_text = ai_response["final_answer"]
 
-        # 3️⃣ Envoyer réponse à WhatsApp
+        # 3️⃣ Send response back to WhatsApp
         url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
-
         headers = {
             "Authorization": f"Bearer {WHATSAPP_TOKEN}",
             "Content-Type": "application/json"
@@ -163,7 +171,10 @@ async def whatsapp_webhook(payload: dict):
             "text": {"body": final_text}
         }
 
-        requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data)
+
+        if response.status_code != 200:
+            print("WhatsApp API Error:", response.text)
 
         return {"status": "message processed"}
 
