@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>AI Assistant</title>
+
+<style>
+body{
+margin:0;
+font-family:'Segoe UI',Tahoma,sans-serif;
+background:linear-gradient(135deg,#1f1f2e,#2b2b40);
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+}
+
+#chat-box{
+width:380px;
+height:580px;
+background:#fff;
+border-radius:16px;
+box-shadow:0 15px 40px rgba(0,0,0,0.4);
+display:flex;
+flex-direction:column;
+overflow:hidden;
+}
+
+#chat-header{
+background:linear-gradient(90deg,#4b6cb7,#182848);
+color:white;
+padding:15px;
+font-weight:bold;
+text-align:center;
+}
+
+#messages{
+flex:1;
+padding:15px;
+overflow-y:auto;
+background:#f7f9fc;
+}
+
+.msg{
+max-width:75%;
+padding:10px 14px;
+border-radius:14px;
+margin:8px 0;
+font-size:14px;
+}
+
+.user{
+background:#4b6cb7;
+color:white;
+margin-left:auto;
+}
+
+.bot{
+background:#e5e9f2;
+margin-right:auto;
+}
+
+.escalation{
+background:#fff3cd;
+border:1px solid #ffeeba;
+color:#856404;
+}
+
+.loader{
+font-style:italic;
+opacity:0.6;
+}
+
+#input-box{
+display:flex;
+border-top:1px solid #ddd;
+}
+
+input{
+flex:1;
+padding:14px;
+border:none;
+outline:none;
+}
+
+button{
+padding:0 18px;
+border:none;
+background:#4b6cb7;
+color:white;
+cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div id="chat-box">
+<div id="chat-header">🤖 AI Assistant</div>
+<div id="messages"></div>
+
+<div id="input-box">
+<input id="userInput" placeholder="Posez votre question..." />
+<button onclick="sendMessage()">➤</button>
+</div>
+</div>
+
+<script>
+const messages=document.getElementById("messages");
+const input=document.getElementById("userInput");
+
+input.addEventListener("keypress",e=>{
+if(e.key==="Enter") sendMessage();
+});
+
+function addMessage(text,cls){
+messages.innerHTML+=`<div class="msg ${cls}">${text}</div>`;
+messages.scrollTop=messages.scrollHeight;
+}
+
+async function sendMessage(){
+
+const text=input.value.trim();
+if(!text) return;
+
+addMessage(text,"user");
+input.value="";
+
+const loaderId="loader";
+messages.innerHTML+=`<div id="${loaderId}" class="msg bot loader">AI is thinking...</div>`;
+
+try{
+
+const res=await fetch("http://127.0.0.1:8000/ask",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+query:text,
+session_id:"web_user"
+})
+});
+
+document.getElementById(loaderId).remove();
+
+if(!res.ok){
+addMessage("Erreur serveur","bot");
+return;
+}
+
+const data=await res.json();
+
+console.log("API RESPONSE:",data); // debug
+
+// ⭐ ESCALATION UI
+if(data.needs_human_agent===true){
+addMessage("⚠️ Connexion à un agent humain demandée.<br>Un agent vous contactera bientôt.","bot escalation");
+return;
+}
+
+// réponse normale
+addMessage(data.final_answer || "Pas de réponse","bot");
+
+}catch(err){
+document.getElementById(loaderId)?.remove();
+addMessage("Erreur connexion serveur","bot");
+}
+}
+</script>
+
+</body>
+</html>

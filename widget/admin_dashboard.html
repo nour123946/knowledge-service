@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Monitoring Dashboard - Advanced</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 30px;
+        }
+
+        h1 { margin-bottom: 30px; }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .card h2 { margin: 0; font-size: 26px; }
+
+        .card p { color: gray; margin-top: 5px; }
+
+        .alert-card {
+            background: #fff3f3;
+            border-left: 5px solid red;
+        }
+
+        button {
+            padding: 8px 15px;
+            border: none;
+            background: #4b6cb7;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        select {
+            padding: 6px;
+            border-radius: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        th, td { padding: 12px; text-align: left; }
+
+        th { background: #4b6cb7; color: white; }
+
+        tr:nth-child(even) { background: #f2f2f2; }
+
+        .escalated { color: red; font-weight: bold; }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            width: 60%;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .close {
+            float: right;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .timeline-user { color: #333; margin-bottom: 10px; }
+        .timeline-ai { color: #1e88e5; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<h1>📊 AI Monitoring Dashboard - Advanced</h1>
+
+<!-- KPI CARDS -->
+<div class="cards">
+    <div class="card">
+        <h2 id="total">0</h2>
+        <p>Total Conversations</p>
+    </div>
+    <div class="card">
+        <h2 id="escalated">0</h2>
+        <p>Escalated</p>
+    </div>
+    <div class="card">
+        <h2 id="rate">0%</h2>
+        <p>Escalation Rate</p>
+    </div>
+    <div class="card">
+        <h2 id="confidence">0</h2>
+        <p>Avg Confidence</p>
+    </div>
+    <div class="card alert-card">
+        <h2 id="score">0</h2>
+        <p>Performance Score</p>
+    </div>
+</div>
+
+<canvas id="channelChart" height="100"></canvas>
+
+<br><br>
+
+<!-- Filter Controls -->
+<div>
+    <button onclick="loadTable(false)">All Conversations</button>
+    <button onclick="loadTable(true)">🚨 Escalated Only</button>
+
+    <select onchange="filterChannel(this.value)">
+        <option value="">All Channels</option>
+        <option value="web">Web</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="facebook">Facebook</option>
+    </select>
+</div>
+
+<br>
+
+<!-- Conversation Table -->
+<table>
+    <thead>
+        <tr>
+            <th>Session</th>
+            <th>Channel</th>
+            <th>Escalated</th>
+            <th>Messages</th>
+            <th>Last Message</th>
+            <th>Updated</th>
+            <th>Details</th>
+        </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+</table>
+
+<br>
+
+<!-- Low Confidence Alerts -->
+<h3>🚨 Low Confidence Alerts</h3>
+<ul id="alertsList"></ul>
+
+<!-- MODAL for Conversation Details -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">X</span>
+        <div id="modalContent"></div>
+    </div>
+</div>
+
+<script>
+
+// API_KEY for Admin Authentication
+const API_KEY = "MY_SUPER_ADMIN_TOKEN_123";
+let currentChannelFilter = "";
+
+// Load Dashboard Data
+async function loadDashboard() {
+    const res = await fetch("http://127.0.0.1:8000/admin/kpis", {
+        headers: { "x-api-key": API_KEY }
+    });
+
+    const data = await res.json();
+
+    document.getElementById("total").innerText = data.total_conversations;
+    document.getElementById("escalated").innerText = data.escalated_conversations;
+    document.getElementById("rate").innerText = data.escalation_rate + "%";
+    document.getElementById("confidence").innerText = data.average_confidence;
+
+    const perf = await fetch("http://127.0.0.1:8000/admin/performance-score", {
+        headers: { "x-api-key": API_KEY }
+    });
+
+    const perfData = await perf.json();
+    document.getElementById("score").innerText = perfData.performance_score;
+
+    new Chart(document.getElementById("channelChart"), {
+        type: "bar",
+        data: {
+            labels: ["Web", "WhatsApp", "Facebook"],
+            datasets: [{
+                label: "Conversations",
+                data: [
+                    data.channels.web || 0,
+                    data.channels.whatsapp || 0,
+                    data.channels.facebook || 0
+                ]
+            }]
+        }
+    });
+
+    loadAlerts();
+}
+
+// Load Conversations Table
+async function loadTable(escalatedOnly = false) {
+    let url = "http://127.0.0.1:8000/admin/conversations";
+    if (escalatedOnly) url += "?escalated_only=true";
+    if (currentChannelFilter) url += "&channel=" + currentChannelFilter;
+
+    const res = await fetch(url, {
+        headers: { "x-api-key": API_KEY }
+    });
+
+    const data = await res.json();
+    const table = document.getElementById("tableBody");
+    table.innerHTML = "";
+
+    if (!data.length) {
+        table.innerHTML = "<tr><td colspan='7'>No conversations</td></tr>";
+        return;
+    }
+
+    data.forEach(convo => {
+        table.innerHTML += `
+        <tr>
+            <td>${convo.session_id}</td>
+            <td>${convo.channel}</td>
+            <td class="${convo.escalated ? 'escalated' : ''}">
+                ${convo.escalated ? "🚨 YES" : "No"}
+            </td>
+            <td>${convo.message_count}</td>
+            <td>${convo.last_message || "-"}</td>
+            <td>${new Date(convo.updated_at).toLocaleString()}</td>
+            <td>
+                <button onclick="viewDetails('${convo.session_id}')">
+                    🔍 View
+                </button>
+            </td>
+        </tr>
+        `;
+    });
+}
+
+// View Conversation Details
+async function viewDetails(sessionId) {
+    const res = await fetch(
+        "http://127.0.0.1:8000/admin/conversations/" + sessionId,
+        { headers: { "x-api-key": API_KEY } }
+    );
+
+    const data = await res.json();
+
+    let html = "<h3>Conversation Timeline</h3>";
+
+    data.messages.forEach(msg => {
+        html += `
+            <div class="${msg.role === 'assistant' ? 'timeline-ai' : 'timeline-user'}">
+                <strong>${msg.role}:</strong> ${msg.message}
+                ${msg.confidence ? "<br>Confidence: " + msg.confidence : ""}
+            </div>
+        `;
+    });
+
+    document.getElementById("modalContent").innerHTML = html;
+    document.getElementById("modal").style.display = "flex";
+}
+
+// Close Modal
+function closeModal() {
+    document.getElementById("modal").style.display = "none";
+}
+
+// Filter Conversations by Channel
+function filterChannel(channel) {
+    currentChannelFilter = channel;
+    loadTable(false);
+}
+
+// Load Low Confidence Alerts
+async function loadAlerts() {
+    const res = await fetch(
+        "http://127.0.0.1:8000/admin/low-confidence?threshold=0.5",
+        { headers: { "x-api-key": API_KEY } }
+    );
+
+    const alerts = await res.json();
+    const list = document.getElementById("alertsList");
+    list.innerHTML = "";
+
+    alerts.forEach(alert => {
+        list.innerHTML += `
+            <li>
+                Session: ${alert.session_id} | 
+                Confidence: ${alert.confidence} |
+                Message: ${alert.message}
+            </li>
+        `;
+    });
+}
+
+// Initialize Data
+loadDashboard();
+loadTable();
+
+</script>
+
+</body>
+</html>
