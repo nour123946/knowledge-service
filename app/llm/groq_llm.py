@@ -2,10 +2,19 @@
 import os
 from groq import Groq
 from app.core.memory import get_history
+import logging
+
+logger = logging.getLogger(__name__)
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def generate_response(question, context_chunks, session_id="default"):
+    """
+    Generate SHORT and DIRECT response using Groq LLM
+    
+    CB-4: LLM Response Generation
+    CB-7: Conversation Memory
+    """
 
     # 🔹 Flatten chunks
     flat_chunks = []
@@ -15,42 +24,71 @@ def generate_response(question, context_chunks, session_id="default"):
         else:
             flat_chunks.append(item)
 
-    context_text = "\n".join(flat_chunks)
+    context_text = "\n".join(flat_chunks) if flat_chunks else "Pas d'info disponible."
 
     # 🔹 Memory
     history = get_history(session_id, last_n=6)
     history_text = ""
     for msg in history:
-        history_text += f"{msg['role'].upper()}: {msg['content']}\n"
+        role = "Client" if msg['role'] == "user" else "Bot"
+        history_text += f"{role}: {msg['content']}\n"
 
-    # ⭐⭐⭐ NOUVEAU PROMPT CONTRÔLÉ ⭐⭐⭐
-    prompt = f"""
-You are a STRICT AI assistant for a retail store.
+    # 🔥 PROMPT COURT ET DIRECT
+    prompt = f"""Tu es un assistant commercial EFFICACE et CONCIS.
 
-IMPORTANT RULES:
-1. You MUST answer using ONLY the KNOWLEDGE BASE below.
-2. NEVER invent products.
-3. NEVER give general marketing talk.
-4. If product not found → say "This product is not available in our store."
-5. If user asks for a list → list products exactly as in knowledge.
-6. If user asks price/availability → extract from knowledge.
+📌 **RÈGLE ABSOLUE : RÉPONDS EN 2-3 PHRASES MAX !**
 
-=== CONVERSATION HISTORY ===
-{history_text}
-
-=== STORE KNOWLEDGE BASE ===
+📋 **BASE DE DONNÉES :**
 {context_text}
 
-=== CUSTOMER QUESTION ===
+✅ **EXEMPLES DE BONNES RÉPONSES :**
+
+Client: "merci"
+Bot: "De rien ! 😊"
+
+Client: "bonjour"
+Bot: "Bonjour ! Comment puis-je vous aider ?"
+
+Client: "je veux adidas"
+Bot: "Parfait ! Les Adidas Ultraboost sont à 420 TND. Vous voulez les commander ?"
+
+Client: "avez vous iphone"
+Bot: "Désolé, on n'a pas d'iPhone. On a des chaussures : Puma (310 TND), Adidas (420 TND), Converse (190 TND). Ça vous intéresse ?"
+
+Client: "combien coûte les puma"
+Bot: "Les Puma RS-X coûtent 310 TND. 😊"
+
+Client: "je veux passer commande"
+Bot: "Super ! Quel produit vous intéresse ?"
+
+❌ **INTERDIT :**
+- Écrire plus de 3 phrases
+- Raconter des détails inutiles
+- Répéter les infos
+- Parler de politique de retour sauf si demandé
+
+---
+
+📜 **HISTORIQUE :**
+{history_text}
+
+❓ **CLIENT :**
 {question}
 
-Provide a direct, factual, short answer based ONLY on store data.
-"""
+💬 **TA RÉPONSE (COURTE ET DIRECTE) :**"""
 
-    chat_completion = client.chat.completions.create(
-        messages=[{"role": "user", "content": prompt}],
-        model="llama-3.1-8b-instant",
-        temperature=0.2  # 🔥 réduit l'imagination
-    )
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.3-70b-versatile",
+            temperature=0.5,  # 🔥 Moins créatif = plus concis
+            max_tokens=150    # 🔥 LIMITÉ À 150 tokens
+        )
 
-    return chat_completion.choices[0].message.content
+        response = chat_completion.choices[0].message.content.strip()
+        logger.info(f"✅ Short response generated for session {session_id}")
+        return response
+    
+    except Exception as e:
+        logger.error(f"❌ Groq API error: {e}")
+        return "Désolé, problème technique. Un conseiller va vous aider. 😊"

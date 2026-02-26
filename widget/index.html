@@ -5,90 +5,224 @@
 <title>AI Assistant</title>
 
 <style>
-body{
-margin:0;
-font-family:'Segoe UI',Tahoma,sans-serif;
-background:linear-gradient(135deg,#1f1f2e,#2b2b40);
-display:flex;
-justify-content:center;
-align-items:center;
-height:100vh;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-#chat-box{
-width:380px;
-height:580px;
-background:#fff;
-border-radius:16px;
-box-shadow:0 15px 40px rgba(0,0,0,0.4);
-display:flex;
-flex-direction:column;
-overflow:hidden;
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    padding: 20px;
 }
 
-#chat-header{
-background:linear-gradient(90deg,#4b6cb7,#182848);
-color:white;
-padding:15px;
-font-weight:bold;
-text-align:center;
+#chat-box {
+    width: 420px;
+    height: 650px;
+    background: #ffffff;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideIn 0.3s ease-out;
 }
 
-#messages{
-flex:1;
-padding:15px;
-overflow-y:auto;
-background:#f7f9fc;
+@keyframes slideIn {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
-.msg{
-max-width:75%;
-padding:10px 14px;
-border-radius:14px;
-margin:8px 0;
-font-size:14px;
+#chat-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    font-weight: 600;
+    font-size: 18px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-.user{
-background:#4b6cb7;
-color:white;
-margin-left:auto;
+#messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: linear-gradient(to bottom, #f8f9fd 0%, #ffffff 100%);
 }
 
-.bot{
-background:#e5e9f2;
-margin-right:auto;
+#messages::-webkit-scrollbar {
+    width: 6px;
 }
 
-.escalation{
-background:#fff3cd;
-border:1px solid #ffeeba;
-color:#856404;
+#messages::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 10px;
 }
 
-.loader{
-font-style:italic;
-opacity:0.6;
+.msg {
+    max-width: 80%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    margin: 10px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    animation: fadeIn 0.3s ease-in;
 }
 
-#input-box{
-display:flex;
-border-top:1px solid #ddd;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-input{
-flex:1;
-padding:14px;
-border:none;
-outline:none;
+.user {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
-button{
-padding:0 18px;
-border:none;
-background:#4b6cb7;
-color:white;
-cursor:pointer;
+.bot {
+    background: #f3f4f6;
+    color: #1f2937;
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.escalation {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+    color: #92400e;
+    padding: 16px;
+    margin: 12px 0;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 100% !important;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.loader {
+    font-style: italic;
+    opacity: 0.7;
+    color: #6b7280;
+}
+
+/* ✅ FEEDBACK BUTTONS */
+.feedback-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.feedback-btn {
+    padding: 8px 16px;
+    border: 2px solid #e5e7eb;
+    background: white;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.feedback-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.feedback-btn.positive:hover {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-color: #10b981;
+    color: #065f46;
+}
+
+.feedback-btn.negative:hover {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
+.feedback-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.feedback-thanks {
+    font-size: 12px;
+    color: #10b981;
+    font-weight: 700;
+    margin-top: 10px;
+    padding: 8px;
+    background: #d1fae5;
+    border-radius: 8px;
+    text-align: center;
+}
+
+#input-box {
+    display: flex;
+    border-top: 1px solid #e5e7eb;
+    background: white;
+    padding: 12px;
+    gap: 10px;
+}
+
+input {
+    flex: 1;
+    padding: 14px 18px;
+    border: 2px solid #e5e7eb;
+    border-radius: 24px;
+    outline: none;
+    font-size: 14px;
+    transition: border 0.2s;
+}
+
+input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+button {
+    padding: 0 24px;
+    border: none;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    cursor: pointer;
+    border-radius: 24px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+button:active {
+    transform: translateY(0);
 }
 </style>
 </head>
@@ -109,13 +243,98 @@ cursor:pointer;
 const messages=document.getElementById("messages");
 const input=document.getElementById("userInput");
 
+// ✅ Génération d'un session_id unique par utilisateur
+const sessionId = 'web_user_' + Math.random().toString(36).substr(2, 9);
+
+// 🆕 VARIABLE POUR STOCKER L'ÉTAT DE LA CONVERSATION
+let conversationState = null;
+
+// ✅ Stocker les données du dernier message pour le feedback
+let lastBotMessage = null;
+
+console.log("🆔 Session ID:", sessionId);
+
 input.addEventListener("keypress",e=>{
 if(e.key==="Enter") sendMessage();
 });
 
 function addMessage(text,cls){
-messages.innerHTML+=`<div class="msg ${cls}">${text}</div>`;
-messages.scrollTop=messages.scrollHeight;
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `msg ${cls}`;
+    msgDiv.innerHTML = text;
+    messages.appendChild(msgDiv);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+// ✅ NOUVELLE FONCTION : Ajouter message avec boutons de feedback
+function addMessageWithFeedback(text, cls, messageId, userMessage, botResponse, intent, confidence){
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `msg ${cls}`;
+    msgDiv.innerHTML = `
+        ${text}
+        <div class="feedback-container" id="feedback-${messageId}">
+            <button class="feedback-btn positive" onclick="submitFeedback('${messageId}', 'positive', \`${escapeHtml(userMessage)}\`, \`${escapeHtml(botResponse)}\`, '${intent}', ${confidence})">
+                👍 Utile
+            </button>
+            <button class="feedback-btn negative" onclick="submitFeedback('${messageId}', 'negative', \`${escapeHtml(userMessage)}\`, \`${escapeHtml(botResponse)}\`, '${intent}', ${confidence})">
+                👎 Pas utile
+            </button>
+        </div>
+    `;
+    messages.appendChild(msgDiv);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+// ✅ Échapper les caractères HTML pour éviter les problèmes
+function escapeHtml(text) {
+    if (!text) return '';
+    return text
+        .replace(/\\/g, "\\\\")
+        .replace(/`/g, "\\`")
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n");
+}
+
+// ✅ FONCTION : Soumettre le feedback
+async function submitFeedback(messageId, rating, userMessage, botResponse, intent, confidence) {
+    const container = document.getElementById(`feedback-${messageId}`);
+    const buttons = container.querySelectorAll('.feedback-btn');
+    
+    // Désactiver les boutons
+    buttons.forEach(btn => btn.disabled = true);
+
+    try {
+        const response = await fetch('http://127.0.0.1:8000/feedback', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                message_id: messageId,
+                session_id: sessionId,
+                user_message: userMessage,
+                bot_response: botResponse,
+                rating: rating,
+                intent: intent,
+                confidence: confidence
+            })
+        });
+
+        if (response.ok) {
+            // Afficher message de remerciement
+            container.innerHTML = `
+                <div class="feedback-thanks">
+                    ✅ Merci pour votre retour !
+                </div>
+            `;
+        } else {
+            console.error('Feedback submission failed');
+            buttons.forEach(btn => btn.disabled = false);
+        }
+
+    } catch (error) {
+        console.error('Error submitting feedback:', error);
+        buttons.forEach(btn => btn.disabled = false);
+    }
 }
 
 async function sendMessage(){
@@ -126,45 +345,94 @@ if(!text) return;
 addMessage(text,"user");
 input.value="";
 
-const loaderId="loader";
-messages.innerHTML+=`<div id="${loaderId}" class="msg bot loader">AI is thinking...</div>`;
+const loaderId="loader_" + Date.now();
+const loaderDiv = document.createElement('div');
+loaderDiv.id = loaderId;
+loaderDiv.className = 'msg bot loader';
+loaderDiv.textContent = '🤔 AI is thinking...';
+messages.appendChild(loaderDiv);
+messages.scrollTop = messages.scrollHeight;
 
 try{
 
+// 🆕 ENVOYER L'ÉTAT DE LA CONVERSATION
 const res=await fetch("http://127.0.0.1:8000/ask",{
 method:"POST",
 headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
-query:text,
-session_id:"web_user"
+query: text,
+session_id: sessionId,
+channel: "web",
+low_conf_history: 0,
+conversation_state: conversationState  // 🆕 AJOUTÉ ICI
 })
 });
 
-document.getElementById(loaderId).remove();
+document.getElementById(loaderId)?.remove();
 
 if(!res.ok){
-addMessage("Erreur serveur","bot");
+addMessage("❌ Erreur serveur (Code: " + res.status + ")","bot");
 return;
 }
 
 const data=await res.json();
 
-console.log("API RESPONSE:",data); // debug
+console.log("📊 API RESPONSE:",data);
 
-// ⭐ ESCALATION UI
-if(data.needs_human_agent===true){
-addMessage("⚠️ Connexion à un agent humain demandée.<br>Un agent vous contactera bientôt.","bot escalation");
-return;
+// 🆕 SAUVEGARDER LE NOUVEL ÉTAT
+conversationState = data.conversation_state;
+console.log("🔄 Conversation State:", conversationState);
+
+// ✅ Récupérer la réponse finale
+const answer = data.final_answer || data.answer || "Pas de réponse";
+const messageId = data.message_id || 'msg_' + Date.now();
+const intent = data.intent || 'unknown';
+const confidence = data.confidence || 0;
+
+// 🔥 VÉRIFICATION DE L'ESCALATION (CORRIGÉE)
+const needsEscalation = data.needs_human_agent === true || data.should_escalate === true;
+
+console.log("🚨 Escalation check:", {
+    needs_human_agent: data.needs_human_agent,
+    should_escalate: data.should_escalate,
+    needsEscalation: needsEscalation,
+    escalation_reason: data.escalation_reason
+});
+
+// ✅ Toujours afficher la réponse du bot
+addMessageWithFeedback(
+    answer,
+    "bot",
+    messageId,
+    text,
+    answer,
+    intent,
+    confidence
+);
+
+// 🔥 SI ESCALATION : Afficher le bandeau
+if (needsEscalation) {
+    console.log("⚠️ DISPLAYING ESCALATION BANNER");
+    
+    addMessage(
+        `<strong>⚠️ Connexion à un agent humain demandée</strong><br><br>
+        <strong>Raison :</strong> ${data.escalation_reason || "Demande non résolue"}<br><br>
+        Un agent vous contactera bientôt. 🙋‍♂️`,
+        "escalation"
+    );
 }
-
-// réponse normale
-addMessage(data.final_answer || "Pas de réponse","bot");
 
 }catch(err){
 document.getElementById(loaderId)?.remove();
-addMessage("Erreur connexion serveur","bot");
+addMessage("❌ Erreur connexion serveur","bot");
+console.error("Error:",err);
 }
 }
+
+// ✅ Message de bienvenue
+window.addEventListener('load', () => {
+addMessage("👋 Bonjour ! Je suis votre assistant IA. Comment puis-je vous aider ?","bot");
+});
 </script>
 
 </body>

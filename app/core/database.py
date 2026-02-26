@@ -19,3 +19,8 @@ conversation_collection.create_index("session_id", unique=True)
 conversation_collection.create_index("updated_at")
 conversation_collection.create_index("escalated")
 conversation_collection.create_index("channel")
+
+# ✅ AJOUTEZ CES LIGNES ICI 👇
+def get_database():
+    """Retourne l'instance de la base de données MongoDB"""
+    return db

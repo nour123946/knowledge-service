@@ -1,326 +1,1885 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>AI Monitoring Dashboard - Advanced</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Tableau de Bord Admin - Knowledge Service AI</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f4f6f9;
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4b6cb7;
+            --secondary: #182848;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --info: #17a2b8;
+            --light: #f8f9fa;
+            --dark: #343a40;
+            --bg-light: #f4f6f9;
+            --bg-dark: #1e1e2e;
+            --text-dark: #333;
+            --text-light: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            transition: all 0.3s ease;
+        }
+
+        body.dark-mode {
+            background: var(--bg-dark);
+            color: var(--text-light);
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        /* Dark Mode Toggle */
+        .theme-toggle {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .auto-refresh-status {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-dot {
+            width: 10px;
+            height: 10px;
+            background: #28a745;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
             padding: 30px;
         }
 
-        h1 { margin-bottom: 30px; }
-
-        .cards {
+        /* KPI Cards */
+        .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
         }
 
-        .card {
+        .kpi-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            border-left: 4px solid var(--primary);
+        }
+
+        body.dark-mode .kpi-card {
+            background: #2a2a3e;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .kpi-card.danger {
+            border-left-color: var(--danger);
+        }
+
+        .kpi-card.success {
+            border-left-color: var(--success);
+        }
+
+        .kpi-card.warning {
+            border-left-color: var(--warning);
+        }
+
+        .kpi-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .kpi-label {
+            color: #888;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        .kpi-trend {
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .trend-up {
+            color: var(--success);
+        }
+
+        .trend-down {
+            color: var(--danger);
+        }
+
+        /* Feedback Section */
+        .feedback-section {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+
+        body.dark-mode .feedback-section {
+            background: #2a2a3e;
+        }
+
+        .feedback-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .feedback-stat {
+            text-align: center;
+        }
+
+        .feedback-stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .feedback-stat-label {
+            color: #888;
+            font-size: 14px;
+        }
+
+        /* Question Item */
+        .question-item {
+            padding: 12px 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        body.dark-mode .question-item {
+            background: #2a2a3e;
+        }
+
+        .question-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .question-text {
+            flex: 1;
+            font-size: 14px;
+        }
+
+        .question-count {
+            background: var(--primary);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 15px;
+        }
+
+        .question-intent {
+            color: #666;
+            font-size: 12px;
+            font-style: italic;
+            margin-left: 10px;
+        }
+
+        body.dark-mode .question-intent {
+            color: #aaa;
+        }
+
+        /* Charts Grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            height: 350px;
+        }
+
+        body.dark-mode .chart-card {
+            background: #2a2a3e;
+        }
+
+        .chart-card h3 {
+            margin-bottom: 15px;
+            color: var(--primary);
+            font-size: 16px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: calc(100% - 40px);
+        }
+
+        /* Filters */
+        .filters-section {
             background: white;
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
         }
 
-        .card h2 { margin: 0; font-size: 26px; }
-
-        .card p { color: gray; margin-top: 5px; }
-
-        .alert-card {
-            background: #fff3f3;
-            border-left: 5px solid red;
+        body.dark-mode .filters-section {
+            background: #2a2a3e;
         }
 
-        button {
-            padding: 8px 15px;
-            border: none;
-            background: #4b6cb7;
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        body.dark-mode .filter-group label {
+            color: #aaa;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        body.dark-mode .filter-group input,
+        body.dark-mode .filter-group select {
+            background: #1e1e2e;
             color: white;
+            border-color: #444;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
             border-radius: 6px;
             cursor: pointer;
-            margin-right: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        select {
-            padding: 6px;
-            border-radius: 5px;
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3a5a9f;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: #333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        /* Search Box */
+        .search-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-box::after {
+            content: "🔍";
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* Table */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        body.dark-mode .table-container {
+            background: #2a2a3e;
+        }
+
+        .table-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        body.dark-mode .table-header {
+            border-bottom-color: #444;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         }
 
-        th, td { padding: 12px; text-align: left; }
+        th {
+            background: var(--primary);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
 
-        th { background: #4b6cb7; color: white; }
+        th:hover {
+            background: #3a5a9f;
+        }
 
-        tr:nth-child(even) { background: #f2f2f2; }
+        th.sortable::after {
+            content: " ⇅";
+            opacity: 0.5;
+        }
 
-        .escalated { color: red; font-weight: bold; }
+        th.sorted-asc::after {
+            content: " ↑";
+            opacity: 1;
+        }
 
+        th.sorted-desc::after {
+            content: " ↓";
+            opacity: 1;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        body.dark-mode td {
+            border-bottom-color: #444;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        body.dark-mode tr:hover {
+            background: #1e1e2e;
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            padding: 20px;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        body.dark-mode .pagination button {
+            background: #2a2a3e;
+            border-color: #444;
+            color: white;
+        }
+
+        .pagination button.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Modal */
         .modal {
+            display: none;
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.6);
-            display: none;
+            background: rgba(0,0,0,0.7);
             justify-content: center;
             align-items: center;
+            z-index: 1000;
         }
 
         .modal-content {
             background: white;
-            width: 60%;
-            padding: 20px;
-            border-radius: 10px;
-            max-height: 80%;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            border-radius: 12px;
             overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         }
 
-        .close {
-            float: right;
+        body.dark-mode .modal-content {
+            background: #2a2a3e;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        body.dark-mode .modal-header {
+            border-bottom-color: #444;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
             cursor: pointer;
-            font-weight: bold;
+            color: #999;
         }
 
-        .timeline-user { color: #333; margin-bottom: 10px; }
-        .timeline-ai { color: #1e88e5; margin-bottom: 10px; }
+        .close-btn:hover {
+            color: var(--danger);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .conversation-message {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .message-user {
+            background: #e3f2fd;
+            margin-left: 40px;
+        }
+
+        body.dark-mode .message-user {
+            background: #1e3a5f;
+        }
+
+        .message-assistant {
+            background: #f5f5f5;
+            margin-right: 40px;
+        }
+
+        body.dark-mode .message-assistant {
+            background: #1e1e2e;
+        }
+
+        .message-role {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .message-text {
+            margin-bottom: 8px;
+        }
+
+        .message-meta {
+            font-size: 12px;
+            color: #999;
+            display: flex;
+            gap: 15px;
+        }
+
+        /* Feedback item */
+        .feedback-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            border-left: 4px solid var(--danger);
+        }
+
+        body.dark-mode .feedback-item {
+            background: #3a2f1f;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #999;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            color: #0c5460;
+        }
+
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .charts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 10px 8px;
+            }
+        }
     </style>
 </head>
 <body>
 
-<h1>📊 AI Monitoring Dashboard - Advanced</h1>
-
-<!-- KPI CARDS -->
-<div class="cards">
-    <div class="card">
-        <h2 id="total">0</h2>
-        <p>Total Conversations</p>
-    </div>
-    <div class="card">
-        <h2 id="escalated">0</h2>
-        <p>Escalated</p>
-    </div>
-    <div class="card">
-        <h2 id="rate">0%</h2>
-        <p>Escalation Rate</p>
-    </div>
-    <div class="card">
-        <h2 id="confidence">0</h2>
-        <p>Avg Confidence</p>
-    </div>
-    <div class="card alert-card">
-        <h2 id="score">0</h2>
-        <p>Performance Score</p>
+<!-- Header -->
+<div class="header">
+    <h1>
+        <span>🎯</span>
+        Tableau de Bord Admin 
+    </h1>
+    <div class="header-controls">
+        <div class="auto-refresh-status">
+            <div class="refresh-dot"></div>
+            <span>Actualisation auto : 30s</span>
+        </div>
+        <button class="theme-toggle" onclick="toggleDarkMode()">
+            🌓 Thème
+        </button>
+        <button class="btn btn-primary" onclick="refreshAll()">
+            🔄 Actualiser
+        </button>
     </div>
 </div>
 
-<canvas id="channelChart" height="100"></canvas>
+<div class="container">
 
-<br><br>
+    <!-- Alerts -->
+    <div id="alerts-container"></div>
 
-<!-- Filter Controls -->
-<div>
-    <button onclick="loadTable(false)">All Conversations</button>
-    <button onclick="loadTable(true)">🚨 Escalated Only</button>
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Conversations</div>
+            <div class="kpi-value" id="kpi-total">0</div>
+            <div class="kpi-trend trend-up" id="kpi-total-trend">↗ +0% vs hier</div>
+        </div>
 
-    <select onchange="filterChannel(this.value)">
-        <option value="">All Channels</option>
-        <option value="web">Web</option>
-        <option value="whatsapp">WhatsApp</option>
-        <option value="facebook">Facebook</option>
-    </select>
+        <div class="kpi-card danger">
+            <div class="kpi-label">Taux d'Escalade</div>
+            <div class="kpi-value" id="kpi-rate">0%</div>
+            <div class="kpi-trend" id="kpi-escalated-count">0 escaladées</div>
+        </div>
+
+        <div class="kpi-card success">
+            <div class="kpi-label">Confiance Moyenne</div>
+            <div class="kpi-value" id="kpi-confidence">0.0</div>
+            <div class="kpi-trend" id="kpi-confidence-trend">Objectif : 0.7+</div>
+        </div>
+
+        <div class="kpi-card warning">
+            <div class="kpi-label">Score de Performance</div>
+            <div class="kpi-value" id="kpi-score">0</div>
+            <div class="kpi-trend" id="kpi-score-trend">70% IA + 30% Succès</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Sentiment</div>
+            <div class="kpi-value" id="kpi-sentiment">😊</div>
+            <div class="kpi-trend" id="kpi-sentiment-text">Majoritairement Positif</div>
+        </div>
+
+        <!-- COMMANDES KPI -->
+        <div class="kpi-card success">
+            <div class="kpi-label">📦 Total Commandes</div>
+            <div class="kpi-value" id="kpi-orders">0</div>
+            <div class="kpi-trend" id="kpi-orders-pending">0 en attente</div>
+        </div>
+
+        <div class="kpi-card success">
+            <div class="kpi-label">💰 Chiffre d'Affaires Total</div>
+            <div class="kpi-value" id="kpi-revenue">0 TND</div>
+            <div class="kpi-trend trend-up" id="kpi-revenue-trend">+0% ce mois</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">🛒 Panier Moyen</div>
+            <div class="kpi-value" id="kpi-aov">0 TND</div>
+            <div class="kpi-trend">par transaction</div>
+        </div>
+    </div>
+
+    <!-- Feedback Section -->
+    <div class="feedback-section">
+        <h3 style="margin-bottom: 20px; color: var(--primary);">👍👎 Avis des Utilisateurs</h3>
+        
+        <div class="feedback-stats-grid">
+            <div class="feedback-stat">
+                <div class="feedback-stat-value" style="color: var(--primary);" id="feedback-total">0</div>
+                <div class="feedback-stat-label">Total des Avis</div>
+            </div>
+            <div class="feedback-stat">
+                <div class="feedback-stat-value" style="color: var(--success);" id="feedback-positive">0</div>
+                <div class="feedback-stat-label">👍 Positifs</div>
+            </div>
+            <div class="feedback-stat">
+                <div class="feedback-stat-value" style="color: var(--danger);" id="feedback-negative">0</div>
+                <div class="feedback-stat-label">👎 Négatifs</div>
+            </div>
+            <div class="feedback-stat">
+                <div class="feedback-stat-value" style="color: var(--warning);" id="feedback-satisfaction">0%</div>
+                <div class="feedback-stat-label">Taux de Satisfaction</div>
+            </div>
+        </div>
+
+        <button class="btn btn-danger" onclick="showNegativeFeedbacks()">
+            🔍 Voir les Avis Négatifs
+        </button>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <h3>📊 Conversations par Canal</h3>
+            <div class="chart-container">
+                <canvas id="channelChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>📈 Tendance d'Escalade (7 jours)</h3>
+            <div class="chart-container">
+                <canvas id="escalationTrendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>🎯 Distribution de Confiance</h3>
+            <div class="chart-container">
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-section">
+        <h3 style="margin-bottom: 15px;">🔍 Filtres Avancés</h3>
+        
+        <div class="filters-grid">
+            <div class="filter-group">
+                <label>Rechercher</label>
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Rechercher dans les messages...">
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label>Canal</label>
+                <select id="filterChannel">
+                    <option value="">Tous les Canaux</option>
+                    <option value="web">Web</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="facebook">Facebook</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Statut d'Escalade</label>
+                <select id="filterEscalation">
+                    <option value="">Tous</option>
+                    <option value="true">Escaladées Seulement</option>
+                    <option value="false">Non-escaladées Seulement</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Niveau de Confiance</label>
+                <select id="filterConfidence">
+                    <option value="">Tous</option>
+                    <option value="high">Élevé (0.7+)</option>
+                    <option value="medium">Moyen (0.4-0.7)</option>
+                    <option value="low">Faible (< 0.4)</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Date Début</label>
+                <input type="date" id="filterDateFrom">
+            </div>
+
+            <div class="filter-group">
+                <label>Date Fin</label>
+                <input type="date" id="filterDateTo">
+            </div>
+        </div>
+
+        <div class="filter-actions">
+            <button class="btn btn-primary" onclick="applyFilters()">
+                🔎 Appliquer les Filtres
+            </button>
+            <button class="btn btn-secondary" onclick="resetFilters()">
+                🔄 Réinitialiser
+            </button>
+            <button class="btn btn-success" onclick="exportToExcel()">
+                📥 Exporter Excel
+            </button>
+            <button class="btn btn-warning" onclick="exportToCSV()">
+                📄 Exporter CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- Table Conversations -->
+    <div class="table-container">
+        <div class="table-header">
+            <h3>💬 Liste des Conversations</h3>
+            <div>
+                <span id="table-count">0 conversations</span>
+            </div>
+        </div>
+
+        <table id="conversationsTable">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('session_id')">ID Session</th>
+                    <th class="sortable" onclick="sortTable('channel')">Canal</th>
+                    <th class="sortable" onclick="sortTable('escalated')">Escaladée</th>
+                    <th>Sentiment</th>
+                    <th class="sortable" onclick="sortTable('message_count')">Messages</th>
+                    <th>Dernier Message</th>
+                    <th class="sortable" onclick="sortTable('updated_at')">Mis à jour</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr>
+                    <td colspan="8" class="loading">
+                        <div class="spinner"></div>
+                        Chargement des conversations...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- Table Commandes -->
+    <div class="table-container">
+        <div class="table-header">
+            <h3>📦 Dernières Commandes</h3>
+            <div>
+                <button class="btn btn-primary" onclick="loadOrders()">🔄 Actualiser</button>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>N° Commande</th>
+                    <th>Client</th>
+                    <th>Téléphone</th>
+                    <th>Produits</th>
+                    <th>Total (TND)</th>
+                    <th>Paiement</th>
+                    <th>Statut</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+                <tr>
+                    <td colspan="9" class="loading">
+                        <div class="spinner"></div>
+                        Chargement des commandes...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
 </div>
 
-<br>
-
-<!-- Conversation Table -->
-<table>
-    <thead>
-        <tr>
-            <th>Session</th>
-            <th>Channel</th>
-            <th>Escalated</th>
-            <th>Messages</th>
-            <th>Last Message</th>
-            <th>Updated</th>
-            <th>Details</th>
-        </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-</table>
-
-<br>
-
-<!-- Low Confidence Alerts -->
-<h3>🚨 Low Confidence Alerts</h3>
-<ul id="alertsList"></ul>
-
-<!-- MODAL for Conversation Details -->
-<div class="modal" id="modal">
+<!-- Modal -->
+<div class="modal" id="conversationModal">
     <div class="modal-content">
-        <span class="close" onclick="closeModal()">X</span>
-        <div id="modalContent"></div>
+        <div class="modal-header">
+            <h2 id="modalTitle">Détails</h2>
+            <button class="close-btn" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <!-- Content will be inserted here -->
+        </div>
     </div>
 </div>
 
 <script>
+// Configuration
+const API_URL = 'http://127.0.0.1:8000';
+const API_KEY = 'MY_SUPER_ADMIN_TOKEN_123';
+const AUTO_REFRESH_INTERVAL = 30000;
 
-// API_KEY for Admin Authentication
-const API_KEY = "MY_SUPER_ADMIN_TOKEN_123";
-let currentChannelFilter = "";
+// State
+let allConversations = [];
+let filteredConversations = [];
+let currentPage = 1;
+let itemsPerPage = 10;
+let sortColumn = 'updated_at';
+let sortDirection = 'desc';
+let charts = {};
 
-// Load Dashboard Data
-async function loadDashboard() {
-    const res = await fetch("http://127.0.0.1:8000/admin/kpis", {
-        headers: { "x-api-key": API_KEY }
-    });
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
+    loadConversations();
+    loadOrders();
+    
+    setInterval(() => {
+        loadDashboard();
+        loadConversations();
+        loadOrders();
+    }, AUTO_REFRESH_INTERVAL);
 
-    const data = await res.json();
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+});
 
-    document.getElementById("total").innerText = data.total_conversations;
-    document.getElementById("escalated").innerText = data.escalated_conversations;
-    document.getElementById("rate").innerText = data.escalation_rate + "%";
-    document.getElementById("confidence").innerText = data.average_confidence;
+// ===== SENTIMENT ANALYSIS =====
 
-    const perf = await fetch("http://127.0.0.1:8000/admin/performance-score", {
-        headers: { "x-api-key": API_KEY }
-    });
-
-    const perfData = await perf.json();
-    document.getElementById("score").innerText = perfData.performance_score;
-
-    new Chart(document.getElementById("channelChart"), {
-        type: "bar",
-        data: {
-            labels: ["Web", "WhatsApp", "Facebook"],
-            datasets: [{
-                label: "Conversations",
-                data: [
-                    data.channels.web || 0,
-                    data.channels.whatsapp || 0,
-                    data.channels.facebook || 0
-                ]
-            }]
-        }
-    });
-
-    loadAlerts();
+function analyzeSentiment(text) {
+    if (!text) return 'neutral';
+    
+    const positive = ['merci', 'super', 'parfait', 'excellent', 'génial', 'bien', 'bon', 'content', 'satisfait', 'thank', 'great', 'good', 'perfect'];
+    const negative = ['énervé', 'nul', 'null', 'mauvais', 'horrible', 'déçu', 'frustré', 'angry', 'bad', 'worst', 'terrible'];
+    
+    const textLower = text.toLowerCase();
+    
+    const positiveCount = positive.filter(word => textLower.includes(word)).length;
+    const negativeCount = negative.filter(word => textLower.includes(word)).length;
+    
+    if (positiveCount > negativeCount) return 'positive';
+    if (negativeCount > positiveCount) return 'negative';
+    return 'neutral';
 }
 
-// Load Conversations Table
-async function loadTable(escalatedOnly = false) {
-    let url = "http://127.0.0.1:8000/admin/conversations";
-    if (escalatedOnly) url += "?escalated_only=true";
-    if (currentChannelFilter) url += "&channel=" + currentChannelFilter;
+function getSentimentEmoji(sentiment) {
+    const emojis = {
+        'positive': '😊',
+        'neutral': '😐',
+        'negative': '😞'
+    };
+    return emojis[sentiment] || '😐';
+}
 
-    const res = await fetch(url, {
-        headers: { "x-api-key": API_KEY }
+// ===== LOAD DATA =====
+
+async function loadDashboard() {
+    try {
+        const [kpis, perfScore, feedbackStats] = await Promise.all([
+            fetchAPI('/admin/kpis'),
+            fetchAPI('/admin/performance-score'),
+            fetchAPI('/admin/feedback-stats')
+        ]);
+
+        document.getElementById('kpi-total').textContent = kpis.total_conversations;
+        document.getElementById('kpi-rate').textContent = kpis.escalation_rate + '%';
+        document.getElementById('kpi-escalated-count').textContent = `${kpis.escalated_conversations} escaladées`;
+        document.getElementById('kpi-confidence').textContent = kpis.average_confidence;
+        document.getElementById('kpi-score').textContent = perfScore.performance_score;
+
+        document.getElementById('feedback-total').textContent = feedbackStats.total_feedbacks;
+        document.getElementById('feedback-positive').textContent = feedbackStats.positive;
+        document.getElementById('feedback-negative').textContent = feedbackStats.negative;
+        document.getElementById('feedback-satisfaction').textContent = feedbackStats.satisfaction_rate + '%';
+
+        const confTrend = document.getElementById('kpi-confidence-trend');
+        confTrend.textContent = kpis.average_confidence >= 0.7 ? '✅ Au-dessus de l\'objectif' : '⚠️ En-dessous de l\'objectif';
+        confTrend.className = kpis.average_confidence >= 0.7 ? 'kpi-trend trend-up' : 'kpi-trend trend-down';
+
+        updateSentimentKPI();
+        updateChannelChart(kpis.channels);
+        updateConfidenceChart();
+        checkAlerts(kpis);
+
+    } catch (error) {
+        console.error('Erreur dashboard:', error);
+    }
+}
+
+function updateSentimentKPI() {
+    const sentiments = allConversations.map(conv => {
+        const userMessages = conv.messages
+            .filter(m => m.role === 'user')
+            .map(m => m.message)
+            .join(' ');
+        return analyzeSentiment(userMessages);
+    });
+    
+    const positiveCount = sentiments.filter(s => s === 'positive').length;
+    const negativeCount = sentiments.filter(s => s === 'negative').length;
+    const neutralCount = sentiments.filter(s => s === 'neutral').length;
+    
+    let overall = 'neutral';
+    if (positiveCount > negativeCount && positiveCount > neutralCount) overall = 'positive';
+    else if (negativeCount > positiveCount && negativeCount > neutralCount) overall = 'negative';
+    
+    document.getElementById('kpi-sentiment').textContent = getSentimentEmoji(overall);
+    document.getElementById('kpi-sentiment-text').textContent = 
+        overall === 'positive' ? 'Majoritairement Positif 😊' :
+        overall === 'negative' ? 'Majoritairement Négatif 😞' :
+        'Majoritairement Neutre 😐';
+}
+
+async function loadConversations() {
+    try {
+        const data = await fetchAPI('/admin/conversations');
+        allConversations = data;
+        applyFilters();
+        updateSentimentKPI();
+    } catch (error) {
+        console.error('Erreur conversations:', error);
+        document.getElementById('tableBody').innerHTML = `
+            <tr><td colspan="8" style="text-align:center; color: red;">
+                ❌ Erreur de chargement
+            </td></tr>
+        `;
+    }
+}
+
+async function loadOrders() {
+    try {
+        const [orders, stats] = await Promise.all([
+            fetchAPI('/admin/orders?limit=50'),
+            fetchAPI('/admin/orders/stats')
+        ]);
+        
+        document.getElementById('kpi-orders').textContent = stats.total_orders;
+        document.getElementById('kpi-orders-pending').textContent = `${stats.pending_orders} en attente`;
+        document.getElementById('kpi-revenue').textContent = stats.total_revenue.toLocaleString() + ' TND';
+        document.getElementById('kpi-aov').textContent = stats.average_order_value.toLocaleString() + ' TND';
+        
+        renderOrdersTable(orders.orders);
+        
+    } catch (error) {
+        console.error('Erreur commandes:', error);
+        document.getElementById('ordersTableBody').innerHTML = `
+            <tr><td colspan="9" style="text-align:center; color: red;">
+                ❌ Erreur de chargement
+            </td></tr>
+        `;
+    }
+}
+
+function renderOrdersTable(orders) {
+    const tbody = document.getElementById('ordersTableBody');
+    
+    if (orders.length === 0) {
+        tbody.innerHTML = `
+            <tr><td colspan="9" style="text-align:center; padding: 40px;">
+                📭 Aucune commande
+            </td></tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = orders.map(order => {
+        const statusBadge = getOrderStatusBadge(order.status);
+        const paymentBadge = getPaymentBadge(order.payment_method);
+        
+        // 🔥 CALCUL DU TOTAL (au cas où il n'existe pas)
+        const totalPrice = order.total_price || (order.subtotal || 0) + (order.delivery_fee || 0);
+        
+        return `
+            <tr>
+                <td><code>${order.order_id || 'N/A'}</code></td>
+                <td>${order.customer_name || 'Inconnu'}</td>
+                <td>${order.customer_phone || 'N/A'}</td>
+                <td>
+                    ${(order.items || []).map(item => 
+                        `${item.product_name || 'Produit'} (x${item.quantity || 1})`
+                    ).join('<br>')}
+                </td>
+                <td><strong>${totalPrice.toFixed(2)} TND</strong></td>
+                <td>${paymentBadge}</td>
+                <td>${statusBadge}</td>
+                <td>${formatDate(order.created_at)}</td>
+                <td>
+                    <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" 
+                            onclick='viewOrder(${JSON.stringify(order).replace(/'/g, "&#39;")})'>
+                        🔍 Détails
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+function getOrderStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge badge-warning">⏳ En attente</span>',
+        'confirmed': '<span class="badge badge-success">✅ Confirmée</span>',
+        'delivered': '<span class="badge badge-info">📦 Livrée</span>',
+        'cancelled': '<span class="badge badge-danger">❌ Annulée</span>'
+    };
+    return badges[status] || '<span class="badge">❓ Inconnu</span>';
+}
+
+function getPaymentBadge(method) {
+    const badges = {
+        'cash_on_delivery': '<span class="badge badge-warning">💵 À la livraison</span>',
+        'card': '<span class="badge badge-info">💳 Carte</span>',
+        'bank_transfer': '<span class="badge">🏦 Virement</span>'
+    };
+    return badges[method] || '<span class="badge">❓ Non spécifié</span>';
+}
+
+function viewOrder(order) {
+    const modal = document.getElementById('conversationModal');
+    const title = document.getElementById('modalTitle');
+    const body = document.getElementById('modalBody');
+    
+    title.textContent = `Commande: ${order.order_id || 'N/A'}`;
+    
+    // 🔥 CALCUL DU TOTAL
+    const subtotal = order.subtotal || 0;
+    const deliveryFee = order.delivery_fee || 0;
+    const totalPrice = order.total_price || (subtotal + deliveryFee);
+    
+    body.innerHTML = `
+        <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div>
+                    <strong>Client:</strong><br>
+                    ${order.customer_name || 'Inconnu'}
+                </div>
+                <div>
+                    <strong>Téléphone:</strong><br>
+                    ${order.customer_phone || 'N/A'}
+                </div>
+                <div>
+                    <strong>Adresse:</strong><br>
+                    ${order.customer_address || 'N/A'}
+                </div>
+                <div>
+                    <strong>Statut:</strong><br>
+                    ${getOrderStatusBadge(order.status || 'pending')}
+                </div>
+                <div>
+                    <strong>Paiement:</strong><br>
+                    ${getPaymentBadge(order.payment_method || 'cash_on_delivery')}
+                </div>
+                <div>
+                    <strong>Canal:</strong><br>
+                    <span class="badge badge-info">${order.channel || 'web'}</span>
+                </div>
+            </div>
+        </div>
+
+        <h4 style="margin: 20px 0 10px;">🛒 Articles Commandés</h4>
+        <table style="width: 100%; margin-bottom: 20px;">
+            <thead>
+                <tr style="background: #f8f9fa;">
+                    <th style="padding: 10px; text-align: left;">Produit</th>
+                    <th style="padding: 10px; text-align: center;">Qté</th>
+                    <th style="padding: 10px; text-align: right;">Prix Unit.</th>
+                    <th style="padding: 10px; text-align: right;">Sous-total</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${(order.items || []).map(item => {
+                    const price = item.price || 0;
+                    const quantity = item.quantity || 1;
+                    return `
+                        <tr>
+                            <td style="padding: 10px;">${item.product_name || 'Produit'}</td>
+                            <td style="padding: 10px; text-align: center;">${quantity}</td>
+                            <td style="padding: 10px; text-align: right;">${price.toFixed(2)} TND</td>
+                            <td style="padding: 10px; text-align: right;"><strong>${(price * quantity).toFixed(2)} TND</strong></td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+            <tfoot>
+                <tr style="background: #f8f9fa; font-weight: bold;">
+                    <td colspan="3" style="padding: 10px; text-align: right;">Sous-total:</td>
+                    <td style="padding: 10px; text-align: right;">${subtotal.toFixed(2)} TND</td>
+                </tr>
+                <tr style="background: #f8f9fa;">
+                    <td colspan="3" style="padding: 10px; text-align: right;">Livraison:</td>
+                    <td style="padding: 10px; text-align: right;">${deliveryFee.toFixed(2)} TND</td>
+                </tr>
+                <tr style="background: #e8f5e9; font-weight: bold; font-size: 16px;">
+                    <td colspan="3" style="padding: 10px; text-align: right;">TOTAL:</td>
+                    <td style="padding: 10px; text-align: right; color: #28a745;">${totalPrice.toFixed(2)} TND</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+            <strong>📅 Créée le:</strong> ${formatDate(order.created_at)}<br>
+            <strong>🔄 Mise à jour:</strong> ${formatDate(order.updated_at)}<br>
+            <strong>👤 Session:</strong> <code>${order.session_id || 'N/A'}</code>
+        </div>
+    `;
+    
+    modal.style.display = 'flex';
+}
+
+async function fetchAPI(endpoint) {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+        headers: { 'x-api-key': API_KEY }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
+// ===== NEGATIVE FEEDBACKS =====
+
+async function showNegativeFeedbacks() {
+    try {
+        const feedbacks = await fetchAPI('/admin/negative-feedbacks');
+        
+        const modal = document.getElementById('conversationModal');
+        const title = document.getElementById('modalTitle');
+        const body = document.getElementById('modalBody');
+        
+        title.textContent = '👎 Avis Négatifs';
+        
+        if (feedbacks.length === 0) {
+            body.innerHTML = '<p style="text-align:center; padding: 40px;">✅ Aucun avis négatif !</p>';
+        } else {
+            body.innerHTML = `
+                <div style="margin-bottom: 20px;">
+                    <strong>${feedbacks.length} avis négatif(s)</strong>
+                </div>
+                ${feedbacks.map((fb, index) => `
+                    <div class="feedback-item">
+                        <div style="font-weight: 600; margin-bottom: 8px;">
+                            #${index + 1} - ${new Date(fb.created_at).toLocaleString('fr-FR')}
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <strong>❓ User:</strong> ${fb.user_message}
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <strong>🤖 Bot:</strong> ${fb.bot_response}
+                        </div>
+                        <div style="display: flex; gap: 15px; font-size: 13px; color: #666;">
+                            <span>Intent: <strong>${fb.intent || 'N/A'}</strong></span>
+                            <span>Conf: <strong>${fb.confidence ? fb.confidence.toFixed(2) : 'N/A'}</strong></span>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+        
+        modal.style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Erreur feedbacks:', error);
+    }
+}
+
+// ===== FILTERS =====
+
+function applyFilters() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const channel = document.getElementById('filterChannel').value;
+    const escalation = document.getElementById('filterEscalation').value;
+    const confidence = document.getElementById('filterConfidence').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+
+    filteredConversations = allConversations.filter(conv => {
+        if (search && !conv.last_message?.toLowerCase().includes(search) && 
+            !conv.session_id.toLowerCase().includes(search)) {
+            return false;
+        }
+
+        if (channel && conv.channel !== channel) return false;
+
+        if (escalation === 'true' && !conv.escalated) return false;
+        if (escalation === 'false' && conv.escalated) return false;
+
+        if (confidence) {
+            const avgConf = getAverageConfidence(conv.messages);
+            if (confidence === 'high' && avgConf < 0.7) return false;
+            if (confidence === 'medium' && (avgConf < 0.4 || avgConf >= 0.7)) return false;
+            if (confidence === 'low' && avgConf >= 0.4) return false;
+        }
+
+        if (dateFrom && new Date(conv.updated_at) < new Date(dateFrom)) return false;
+        if (dateTo && new Date(conv.updated_at) > new Date(dateTo)) return false;
+
+        return true;
     });
 
-    const data = await res.json();
-    const table = document.getElementById("tableBody");
-    table.innerHTML = "";
+    currentPage = 1;
+    renderTable();
+}
 
-    if (!data.length) {
-        table.innerHTML = "<tr><td colspan='7'>No conversations</td></tr>";
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('filterChannel').value = '';
+    document.getElementById('filterEscalation').value = '';
+    document.getElementById('filterConfidence').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    applyFilters();
+}
+
+function getAverageConfidence(messages) {
+    const confidences = messages
+        .filter(m => m.role === 'assistant' && m.confidence)
+        .map(m => m.confidence);
+    
+    if (confidences.length === 0) return 0;
+    return confidences.reduce((a, b) => a + b) / confidences.length;
+}
+
+function getConversationSentiment(conv) {
+    const userMessages = conv.messages
+        .filter(m => m.role === 'user')
+        .map(m => m.message)
+        .join(' ');
+    return analyzeSentiment(userMessages);
+}
+
+// ===== TABLE =====
+
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    
+    const sorted = [...filteredConversations].sort((a, b) => {
+        let aVal = a[sortColumn];
+        let bVal = b[sortColumn];
+        
+        if (sortColumn === 'updated_at') {
+            aVal = new Date(aVal);
+            bVal = new Date(bVal);
+        }
+        
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const page = sorted.slice(start, end);
+
+    if (page.length === 0) {
+        tbody.innerHTML = `
+            <tr><td colspan="8" style="text-align:center; padding: 40px;">
+                📭 Aucune conversation
+            </td></tr>
+        `;
+    } else {
+        tbody.innerHTML = page.map(conv => {
+            const sentiment = getConversationSentiment(conv);
+            const sentimentEmoji = getSentimentEmoji(sentiment);
+            
+            return `
+            <tr>
+                <td><code>${conv.session_id}</code></td>
+                <td><span class="badge badge-info">${conv.channel}</span></td>
+                <td>
+                    ${conv.escalated 
+                        ? '<span class="badge badge-danger">🚨 Oui</span>' 
+                        : '<span class="badge badge-success">✅ Non</span>'}
+                </td>
+                <td style="font-size: 24px;">${sentimentEmoji}</td>
+                <td>${conv.message_count || 0}</td>
+                <td>${truncate(conv.last_message || '-', 40)}</td>
+                <td>${formatDate(conv.updated_at)}</td>
+                <td>
+                    <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" 
+                            onclick='viewConversation(${JSON.stringify(conv).replace(/'/g, "&#39;")})'>
+                        🔍 Voir
+                    </button>
+                </td>
+            </tr>
+        `}).join('');
+    }
+
+    document.getElementById('table-count').textContent = 
+        `${filteredConversations.length} conversation${filteredConversations.length !== 1 ? 's' : ''}`;
+
+    renderPagination(sorted.length);
+}
+
+function renderPagination(total) {
+    const totalPages = Math.ceil(total / itemsPerPage);
+    const pagination = document.getElementById('pagination');
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
         return;
     }
 
-    data.forEach(convo => {
-        table.innerHTML += `
-        <tr>
-            <td>${convo.session_id}</td>
-            <td>${convo.channel}</td>
-            <td class="${convo.escalated ? 'escalated' : ''}">
-                ${convo.escalated ? "🚨 YES" : "No"}
-            </td>
-            <td>${convo.message_count}</td>
-            <td>${convo.last_message || "-"}</td>
-            <td>${new Date(convo.updated_at).toLocaleString()}</td>
-            <td>
-                <button onclick="viewDetails('${convo.session_id}')">
-                    🔍 View
+    let html = `
+        <button ${currentPage === 1 ? 'disabled' : ''} onclick="changePage(${currentPage - 1})">
+            ◀ Préc.
+        </button>
+    `;
+
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += `
+                <button class="${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">
+                    ${i}
                 </button>
-            </td>
-        </tr>
-        `;
+            `;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            html += `<span>...</span>`;
+        }
+    }
+
+    html += `
+        <button ${currentPage === totalPages ? 'disabled' : ''} onclick="changePage(${currentPage + 1})">
+            Suiv. ▶
+        </button>
+    `;
+
+    pagination.innerHTML = html;
+}
+
+function changePage(page) {
+    currentPage = page;
+    renderTable();
+}
+
+function sortTable(column) {
+    if (sortColumn === column) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortColumn = column;
+        sortDirection = 'asc';
+    }
+    
+    document.querySelectorAll('th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+    });
+    
+    const th = event.target;
+    th.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    
+    renderTable();
+}
+
+// ===== MODAL =====
+
+function viewConversation(conv) {
+    const modal = document.getElementById('conversationModal');
+    const title = document.getElementById('modalTitle');
+    const body = document.getElementById('modalBody');
+    
+    title.textContent = `Conversation: ${conv.session_id}`;
+    
+    const avgConf = getAverageConfidence(conv.messages);
+    const sentiment = getConversationSentiment(conv);
+    const sentimentEmoji = getSentimentEmoji(sentiment);
+    
+    body.innerHTML = `
+        <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                <div>
+                    <strong>Canal:</strong><br>
+                    <span class="badge badge-info">${conv.channel}</span>
+                </div>
+                <div>
+                    <strong>Messages:</strong><br>
+                    ${conv.message_count || 0}
+                </div>
+                <div>
+                    <strong>Escaladée:</strong><br>
+                    ${conv.escalated ? '<span class="badge badge-danger">Oui</span>' : '<span class="badge badge-success">Non</span>'}
+                </div>
+                <div>
+                    <strong>Confiance Moy.:</strong><br>
+                    ${avgConf.toFixed(2)}
+                </div>
+                <div>
+                    <strong>Sentiment:</strong><br>
+                    ${sentimentEmoji} ${sentiment}
+                </div>
+                <div>
+                    <strong>Dernière MAJ:</strong><br>
+                    ${formatDate(conv.updated_at)}
+                </div>
+            </div>
+        </div>
+
+        <h4 style="margin-bottom: 15px;">💬 Chronologie</h4>
+        ${conv.messages.map(msg => `
+            <div class="conversation-message message-${msg.role}">
+                <div class="message-role">
+                    ${msg.role === 'user' ? '👤 Utilisateur' : '🤖 Assistant'}
+                </div>
+                <div class="message-text">${msg.message}</div>
+                <div class="message-meta">
+                    <span>⏰ ${formatDate(msg.timestamp)}</span>
+                    ${msg.confidence ? `<span>🎯 Confiance: ${msg.confidence}</span>` : ''}
+                </div>
+            </div>
+        `).join('')}
+    `;
+    
+    modal.style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('conversationModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('conversationModal');
+    if (event.target === modal) {
+        closeModal();
+    }
+}
+
+// ===== CHARTS =====
+
+function updateChannelChart(channels) {
+    const ctx = document.getElementById('channelChart');
+    
+    if (charts.channel) {
+        charts.channel.destroy();
+    }
+    
+    charts.channel = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Web', 'WhatsApp', 'Facebook'],
+            datasets: [{
+                label: 'Conversations',
+                data: [
+                    channels.web || 0,
+                    channels.whatsapp || 0,
+                    channels.facebook || 0
+                ],
+                backgroundColor: ['#4b6cb7', '#25D366', '#1877F2']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
     });
 }
 
-// View Conversation Details
-async function viewDetails(sessionId) {
-    const res = await fetch(
-        "http://127.0.0.1:8000/admin/conversations/" + sessionId,
-        { headers: { "x-api-key": API_KEY } }
+function updateConfidenceChart() {
+    const ctx = document.getElementById('confidenceChart');
+    
+    if (charts.confidence) {
+        charts.confidence.destroy();
+    }
+    
+    const confidences = allConversations.flatMap(conv => 
+        conv.messages
+            .filter(m => m.role === 'assistant' && m.confidence)
+            .map(m => m.confidence)
     );
+    
+    const high = confidences.filter(c => c >= 0.7).length;
+    const medium = confidences.filter(c => c >= 0.4 && c < 0.7).length;
+    const low = confidences.filter(c => c < 0.4).length;
+    
+    charts.confidence = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Élevé (0.7+)', 'Moyen (0.4-0.7)', 'Faible (< 0.4)'],
+            datasets: [{
+                data: [high, medium, low],
+                backgroundColor: ['#28a745', '#ffc107', '#dc3545']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true
+        }
+    });
+}
 
-    const data = await res.json();
+setTimeout(() => {
+    const ctx = document.getElementById('escalationTrendChart');
+    if (charts.escalationTrend) {
+        charts.escalationTrend.destroy();
+    }
+    charts.escalationTrend = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+            datasets: [{
+                label: 'Escalades',
+                data: [2, 3, 1, 4, 2, 1, 3],
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}, 1000);
 
-    let html = "<h3>Conversation Timeline</h3>";
+// ===== EXPORT =====
 
-    data.messages.forEach(msg => {
-        html += `
-            <div class="${msg.role === 'assistant' ? 'timeline-ai' : 'timeline-user'}">
-                <strong>${msg.role}:</strong> ${msg.message}
-                ${msg.confidence ? "<br>Confidence: " + msg.confidence : ""}
+function exportToExcel() {
+        const data = filteredConversations.map(conv => {
+        const sentiment = getConversationSentiment(conv);
+        return {
+            'ID Session': conv.session_id,
+            'Canal': conv.channel,
+            'Escaladée': conv.escalated ? 'Oui' : 'Non',
+            'Sentiment': sentiment,
+            'Messages': conv.message_count,
+            'Dernier Message': conv.last_message,
+            'Mis à jour': formatDate(conv.updated_at)
+        };
+    });
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Conversations");
+    XLSX.writeFile(wb, `conversations_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function exportToCSV() {
+    const headers = ['ID Session', 'Canal', 'Escaladée', 'Sentiment', 'Messages', 'Dernier Message', 'Mis à jour'];
+    const rows = filteredConversations.map(conv => {
+        const sentiment = getConversationSentiment(conv);
+        return [
+            conv.session_id,
+            conv.channel,
+            conv.escalated ? 'Oui' : 'Non',
+            sentiment,
+            conv.message_count,
+            `"${conv.last_message?.replace(/"/g, '""') || ''}"`,
+            formatDate(conv.updated_at)
+        ];
+    });
+    
+    const csv = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversations_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+// ===== ALERTS =====
+
+function checkAlerts(kpis) {
+    const container = document.getElementById('alerts-container');
+    container.innerHTML = '';
+    
+    if (kpis.escalation_rate > 20) {
+        container.innerHTML += `
+            <div class="alert alert-danger">
+                <span style="font-size: 24px;">⚠️</span>
+                <div>
+                    <strong>Taux d'Escalade Élevé !</strong><br>
+                    ${kpis.escalation_rate}% des conversations sont escaladées. Considérez améliorer la base de connaissances.
+                </div>
             </div>
         `;
-    });
-
-    document.getElementById("modalContent").innerHTML = html;
-    document.getElementById("modal").style.display = "flex";
-}
-
-// Close Modal
-function closeModal() {
-    document.getElementById("modal").style.display = "none";
-}
-
-// Filter Conversations by Channel
-function filterChannel(channel) {
-    currentChannelFilter = channel;
-    loadTable(false);
-}
-
-// Load Low Confidence Alerts
-async function loadAlerts() {
-    const res = await fetch(
-        "http://127.0.0.1:8000/admin/low-confidence?threshold=0.5",
-        { headers: { "x-api-key": API_KEY } }
-    );
-
-    const alerts = await res.json();
-    const list = document.getElementById("alertsList");
-    list.innerHTML = "";
-
-    alerts.forEach(alert => {
-        list.innerHTML += `
-            <li>
-                Session: ${alert.session_id} | 
-                Confidence: ${alert.confidence} |
-                Message: ${alert.message}
-            </li>
+    }
+    
+    if (kpis.average_confidence < 0.5) {
+        container.innerHTML += `
+            <div class="alert alert-warning">
+                <span style="font-size: 24px;">⚡</span>
+                <div>
+                    <strong>Confiance Moyenne Faible</strong><br>
+                    Actuel : ${kpis.average_confidence}. Objectif : 0.7+. Ajoutez plus de données d'entraînement.
+                </div>
+            </div>
         `;
+    }
+    
+    if (kpis.low_confidence_responses > 10) {
+        container.innerHTML += `
+            <div class="alert alert-info">
+                <span style="font-size: 24px;">ℹ️</span>
+                <div>
+                    <strong>${kpis.low_confidence_responses} Réponses à Faible Confiance</strong><br>
+                    Examinez ces conversations pour identifier les lacunes de connaissances.
+                </div>
+            </div>
+        `;
+    }
+}
+
+// ===== UTILS =====
+
+function formatDate(date) {
+    if (!date) return '-';
+    return new Date(date).toLocaleString('fr-FR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
     });
 }
 
-// Initialize Data
-loadDashboard();
-loadTable();
+function truncate(str, length) {
+    if (!str) return '-';
+    return str.length > length ? str.substring(0, length) + '...' : str;
+}
+
+function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+}
+
+if (localStorage.getItem('darkMode') === 'true') {
+    document.body.classList.add('dark-mode');
+}
+
+function refreshAll() {
+    loadDashboard();
+    loadConversations();
+    loadOrders();
+}
 
 </script>
 

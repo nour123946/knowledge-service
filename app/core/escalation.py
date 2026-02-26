@@ -8,7 +8,7 @@ Déclenche escalation si :
 2️⃣ User frustré
 3️⃣ Confidence faible
 4️⃣ LLM incertain
-5️⃣ Trop d’échecs consécutifs
+5️⃣ Trop d'échecs consécutifs
 
 + ⭐ Bloque la session après escalation
 """
@@ -38,19 +38,52 @@ def reset_escalation(session_id: str):
 
 
 # =====================================================
-# USER FRUSTRATION SIGNALS
+# USER FRUSTRATION SIGNALS (🔥 AMÉLIORATION)
 # =====================================================
 FRUSTRATION_KEYWORDS = [
+    # Expressions de mécontentement
     "tu ne comprends pas",
+    "tu comprends rien",
+    "tu comprends pas",
     "c'est faux",
     "nul",
+    "null",  # 🔥 AJOUTÉ
+    "nulle",  # 🔥 AJOUTÉ
+    "mauvais",
+    "mauvaise",
     "mauvaise réponse",
     "ça marche pas",
+    "ça ne marche pas",
     "encore faux",
+    "pas bon",
+    "pas correct",
+    "incorrect",
+    "horrible",
+    "catastrophe",
+    "pas utile",
+    "aucune aide",
+    "ne sert à rien",
+    "inutile",
+    
+    # Insultes
+    "stupide",
+    "débile",
+    "idiot",
+    "crétin",
+    "con",
+    "connerie",
+    "merde",
+    
+    # Anglais
     "stupid",
     "useless",
     "worst",
-    "not helping"
+    "bad",
+    "terrible",
+    "awful",
+    "not helping",
+    "doesn't work",
+    "waste of time"
 ]
 
 # =====================================================
@@ -60,12 +93,18 @@ HUMAN_REQUEST_KEYWORDS = [
     "agent humain",
     "humain",
     "parler à quelqu",
+    "parler à un",
+    "parler avec",
     "service client",
     "réclamation",
+    "conseiller",
+    "opérateur",
+    "support",
     "human agent",
     "real person",
     "customer support",
-    "help me"
+    "help me",
+    "speak to someone"
 ]
 
 # =====================================================
@@ -95,16 +134,63 @@ NOT_FOUND_PHRASES = [
 
 
 # =====================================================
-# DETECTIONS
+# DETECTIONS (🔥 AMÉLIORATION)
 # =====================================================
-def detect_frustration(user_message: str) -> bool:
+def detect_negative_sentiment(user_message: str) -> bool:
+    """
+    🔥 NOUVELLE FONCTION : Détecte le sentiment négatif
+    """
     msg = user_message.lower()
-    return any(word in msg for word in FRUSTRATION_KEYWORDS)
+    
+    # Patterns négatifs spécifiques
+    negative_patterns = [
+        "tu es nul",
+        "tu es null",
+        "tu es nulle",
+        "c'est nul",
+        "c'est null",
+        "vraiment nul",
+        "complètement nul",
+        "totalement nul",
+        "pas du tout utile",
+        "ne m'aide pas"
+    ]
+    
+    return any(pattern in msg for pattern in negative_patterns)
+
+
+def detect_frustration(user_message: str) -> bool:
+    """
+    🔥 AMÉLIORÉ : Double vérification (mots-clés + patterns)
+    """
+    msg = user_message.lower()
+    
+    # Méthode 1 : Mots-clés directs
+    has_keyword = any(word in msg for word in FRUSTRATION_KEYWORDS)
+    
+    # Méthode 2 : Patterns de sentiment négatif
+    has_negative_sentiment = detect_negative_sentiment(user_message)
+    
+    # 🔥 Escalade si au moins une méthode détecte la frustration
+    if has_keyword or has_negative_sentiment:
+        print(f"🚨 FRUSTRATION DETECTED: '{user_message}'")
+        return True
+    
+    return False
 
 
 def detect_human_request(user_message: str) -> bool:
+    """
+    Détecte si l'utilisateur demande un agent humain
+    """
     msg = user_message.lower()
-    return any(word in msg for word in HUMAN_REQUEST_KEYWORDS)
+    
+    detected = any(word in msg for word in HUMAN_REQUEST_KEYWORDS)
+    
+    if detected:
+        print(f"🚨 HUMAN REQUEST DETECTED: '{user_message}'")
+    
+    return detected
 
 
 # =====================================================
@@ -133,7 +219,7 @@ def compute_confidence(retrieved_chunks: list, llm_answer: str, intent: str) -> 
 
 
 # =====================================================
-# ESCALATION DECISION
+# ESCALATION DECISION (🔥 AMÉLIORATION)
 # =====================================================
 def should_escalate(
     user_message: str,
@@ -141,25 +227,33 @@ def should_escalate(
     llm_answer: str,
     previous_low_conf_count: int = 0
 ) -> bool:
-
+    """
+    🔥 AMÉLIORÉ : Meilleure priorisation des critères
+    """
+    
+    # 1️⃣ PRIORITÉ MAXIMALE : Demande explicite d'agent humain
     if detect_human_request(user_message):
-        print("ESCALATION → user wants human")
+        print("��� ESCALATION → user wants human")
         return True
 
+    # 2️⃣ Frustration utilisateur (MAINTENANT DÉTECTÉ CORRECTEMENT)
     if detect_frustration(user_message):
-        print("ESCALATION → frustration detected")
+        print("✅ ESCALATION → frustration detected")
         return True
 
+    # 3️⃣ IA incertaine
     if any(p in llm_answer.lower() for p in LOW_CONF_PHRASES):
-        print("ESCALATION → AI unsure")
+        print("✅ ESCALATION → AI unsure")
         return True
 
+    # 4️⃣ Confiance très basse
     if confidence_score <= 0.4:
-        print("ESCALATION → low confidence")
+        print(f"✅ ESCALATION → low confidence ({confidence_score})")
         return True
 
+    # 5️⃣ Échecs répétés
     if previous_low_conf_count >= 2:
-        print("ESCALATION → repeated failures")
+        print(f"✅ ESCALATION → repeated failures ({previous_low_conf_count})")
         return True
 
     return False
