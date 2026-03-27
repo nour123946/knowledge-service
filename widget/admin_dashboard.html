@@ -811,21 +811,33 @@
             <div class="kpi-trend" id="kpi-sentiment-text">Majoritairement Positif</div>
         </div>
 
-        <!-- COMMANDES KPI -->
-        <div class="kpi-card success">
-            <div class="kpi-label">📦 Total Commandes</div>
-            <div class="kpi-value" id="kpi-orders">0</div>
-            <div class="kpi-trend" id="kpi-orders-pending">0 en attente</div>
+        <!-- 🔥 COMMANDES KPI (MODIFIÉ) -->
+        <div class="kpi-card">
+            <div class="kpi-label">📦 TOTAL COMMANDES</div>
+            <div class="kpi-value" id="kpi-orders-total">0</div>
+            <div class="kpi-trend" id="kpi-orders-breakdown">
+                0 livrées | 0 en cours | 0 annulées
+            </div>
         </div>
 
         <div class="kpi-card success">
-            <div class="kpi-label">💰 Chiffre d'Affaires Total</div>
-            <div class="kpi-value" id="kpi-revenue">0 TND</div>
-            <div class="kpi-trend trend-up" id="kpi-revenue-trend">+0% ce mois</div>
+            <div class="kpi-label">💰 CA ENCAISSÉ (Livrées)</div>
+            <div class="kpi-value" id="kpi-revenue-delivered">0 TND</div>
+            <div class="kpi-trend" id="kpi-revenue-delivered-count">
+                0 commandes livrées
+            </div>
+        </div>
+
+        <div class="kpi-card warning">
+            <div class="kpi-label">⏳ CA EN TRANSIT (Confirmées et Expédiées )       </div>
+            <div class="kpi-value" id="kpi-revenue-transit">0 TND</div>
+            <div class="kpi-trend" id="kpi-revenue-transit-count">
+                0 commandes en cours
+            </div>
         </div>
 
         <div class="kpi-card">
-            <div class="kpi-label">🛒 Panier Moyen</div>
+            <div class="kpi-label">🛒 PANIER MOYEN</div>
             <div class="kpi-value" id="kpi-aov">0 TND</div>
             <div class="kpi-trend">par transaction</div>
         </div>
@@ -1174,10 +1186,30 @@ async function loadOrders() {
             fetchAPI('/admin/orders/stats')
         ]);
         
-        document.getElementById('kpi-orders').textContent = stats.total_orders;
-        document.getElementById('kpi-orders-pending').textContent = `${stats.pending_orders} en attente`;
-        document.getElementById('kpi-revenue').textContent = stats.total_revenue.toLocaleString() + ' TND';
-        document.getElementById('kpi-aov').textContent = stats.average_order_value.toLocaleString() + ' TND';
+        // 🔥 Update KPIs (NOUVEAU)
+        const deliveredCount = stats.delivered_count || 0;
+        const inProgressCount = stats.in_progress_count || 0;
+        const cancelledCount = stats.cancelled_count || 0;
+        const deliveredRevenue = stats.delivered_revenue || 0;
+        const transitRevenue = stats.transit_revenue || 0;
+
+        // Carte 1 : Total Commandes
+        document.getElementById('kpi-orders-total').textContent = stats.total_orders || 0;
+        document.getElementById('kpi-orders-breakdown').textContent = 
+            `${deliveredCount} livrées | ${inProgressCount} en cours | ${cancelledCount} annulées`;
+
+        // Carte 2 : CA Encaissé
+        document.getElementById('kpi-revenue-delivered').textContent = `${deliveredRevenue.toFixed(2)} TND`;
+        document.getElementById('kpi-revenue-delivered-count').textContent = 
+            `${deliveredCount} commande${deliveredCount > 1 ? 's' : ''} livrée${deliveredCount > 1 ? 's' : ''}`;
+
+        // Carte 3 : CA en Transit
+        document.getElementById('kpi-revenue-transit').textContent = `${transitRevenue.toFixed(2)} TND`;
+        document.getElementById('kpi-revenue-transit-count').textContent = 
+            `${inProgressCount} commande${inProgressCount > 1 ? 's' : ''} en cours`;
+
+        // Carte 4 : Panier Moyen (inchangé)
+        document.getElementById('kpi-aov').textContent = `${(stats.average_order_value || 0).toFixed(2)} TND`;
         
         renderOrdersTable(orders.orders);
         
@@ -1207,7 +1239,6 @@ function renderOrdersTable(orders) {
         const statusBadge = getOrderStatusBadge(order.status);
         const paymentBadge = getPaymentBadge(order.payment_method);
         
-        // 🔥 CALCUL DU TOTAL (au cas où il n'existe pas)
         const totalPrice = order.total_price || (order.subtotal || 0) + (order.delivery_fee || 0);
         
         return `
@@ -1234,11 +1265,13 @@ function renderOrdersTable(orders) {
         `;
     }).join('');
 }
+
 function getOrderStatusBadge(status) {
     const badges = {
         'pending': '<span class="badge badge-warning">⏳ En attente</span>',
         'confirmed': '<span class="badge badge-success">✅ Confirmée</span>',
-        'delivered': '<span class="badge badge-info">📦 Livrée</span>',
+        'shipped': '<span class="badge badge-info">🚚 Expédiée</span>',
+        'delivered': '<span class="badge badge-success">📦 Livrée</span>',
         'cancelled': '<span class="badge badge-danger">❌ Annulée</span>'
     };
     return badges[status] || '<span class="badge">❓ Inconnu</span>';
@@ -1260,7 +1293,6 @@ function viewOrder(order) {
     
     title.textContent = `Commande: ${order.order_id || 'N/A'}`;
     
-    // 🔥 CALCUL DU TOTAL
     const subtotal = order.subtotal || 0;
     const deliveryFee = order.delivery_fee || 0;
     const totalPrice = order.total_price || (subtotal + deliveryFee);
@@ -1295,10 +1327,47 @@ function viewOrder(order) {
             </div>
         </div>
 
+        <!-- 🔥 BOUTONS CHANGEMENT STATUT -->
+        <div style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+            <strong>🔄 Changer le statut de la commande:</strong><br><br>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn ${order.status === 'pending' ? 'btn-secondary' : 'btn-primary'}" 
+                        style="padding: 8px 15px; font-size: 13px;"
+                        onclick="changeOrderStatus('${order.order_id}', 'pending')" 
+                        ${order.status === 'pending' ? 'disabled' : ''}>
+                    ⏳ En attente
+                </button>
+                <button class="btn ${order.status === 'confirmed' ? 'btn-secondary' : 'btn-primary'}" 
+                        style="padding: 8px 15px; font-size: 13px;"
+                        onclick="changeOrderStatus('${order.order_id}', 'confirmed')" 
+                        ${order.status === 'confirmed' ? 'disabled' : ''}>
+                    ✅ Confirmée
+                </button>
+                <button class="btn ${order.status === 'shipped' ? 'btn-secondary' : 'btn-primary'}" 
+                        style="padding: 8px 15px; font-size: 13px;"
+                        onclick="changeOrderStatus('${order.order_id}', 'shipped')" 
+                        ${order.status === 'shipped' ? 'disabled' : ''}>
+                    🚚 Expédiée
+                </button>
+                <button class="btn ${order.status === 'delivered' ? 'btn-secondary' : 'btn-primary'}" 
+                        style="padding: 8px 15px; font-size: 13px;"
+                        onclick="changeOrderStatus('${order.order_id}', 'delivered')" 
+                        ${order.status === 'delivered' ? 'disabled' : ''}>
+                    📦 Livrée
+                </button>
+                <button class="btn ${order.status === 'cancelled' ? 'btn-secondary' : 'btn-danger'}" 
+                        style="padding: 8px 15px; font-size: 13px;"
+                        onclick="changeOrderStatus('${order.order_id}', 'cancelled')" 
+                        ${order.status === 'cancelled' ? 'disabled' : ''}>
+                    ❌ Annulée
+                </button>
+            </div>
+        </div>
+
         <h4 style="margin: 20px 0 10px;">🛒 Articles Commandés</h4>
         <table style="width: 100%; margin-bottom: 20px;">
             <thead>
-                <tr style="background: #f8f9fa;">
+                <tr style="background: #4b6cb7; color: white;">
                     <th style="padding: 10px; text-align: left;">Produit</th>
                     <th style="padding: 10px; text-align: center;">Qté</th>
                     <th style="padding: 10px; text-align: right;">Prix Unit.</th>
@@ -1343,6 +1412,38 @@ function viewOrder(order) {
     `;
     
     modal.style.display = 'flex';
+}
+
+// 🔥 NOUVELLE FONCTION : Changer le statut d'une commande
+async function changeOrderStatus(orderId, newStatus) {
+    if (!confirm(`Changer le statut de la commande ${orderId} à "${newStatus}" ?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/admin/orders/${orderId}/status?status=${newStatus}`, {
+            method: 'PUT',
+            headers: {
+                'x-api-key': API_KEY
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        alert(`✅ ${result.message}`);
+        
+        // Fermer le modal et recharger les commandes
+        closeModal();
+        loadOrders();
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors du changement de statut');
+    }
 }
 
 async function fetchAPI(endpoint) {
@@ -1758,7 +1859,7 @@ setTimeout(() => {
 // ===== EXPORT =====
 
 function exportToExcel() {
-        const data = filteredConversations.map(conv => {
+    const data = filteredConversations.map(conv => {
         const sentiment = getConversationSentiment(conv);
         return {
             'ID Session': conv.session_id,

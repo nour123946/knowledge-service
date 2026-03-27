@@ -37,7 +37,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "MY_SUPER_ADMIN_TOKEN_123")  # ✅ Changé ici
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "MY_SUPER_ADMIN_TOKEN_123")
 
 
 # 🔐 API KEY SECURITY
@@ -797,7 +797,7 @@ def webhook_status():
 def admin_table_data(
     escalated_only: Optional[bool] = False,
     channel: Optional[str] = None,
-    x_api_key: str = Header(None)  # ✅ CHANGÉ ICI
+    x_api_key: str = Header(None)
 ):
     """
     CB-13: Conversation Logs & History
@@ -1075,8 +1075,10 @@ def admin_low_confidence_feedbacks(
     
     feedbacks = get_low_confidence_feedbacks(threshold=threshold, limit=limit)
     return feedbacks
-   # =====================================================
-# 📦 ORDERS ENDPOINTS - ADMIN
+
+
+# =====================================================
+# 📦 ORDERS ENDPOINTS - ADMIN (🔥 MODIFIÉ)
 # =====================================================
 
 @app.get("/admin/orders")
@@ -1086,7 +1088,7 @@ def admin_orders(
     x_api_key: str = Header(None)
 ):
     """
-    Get all orders for admin dashboard
+    Get all orders for admin dashboard (🔥 AVEC coordonnées correctes)
     """
     if x_api_key != ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -1100,23 +1102,46 @@ def admin_orders(
     if status:
         query["status"] = status
     
-    orders = list(
+    orders_raw = list(
         orders_collection
         .find(query, {"_id": 0})
         .sort("created_at", -1)
         .limit(limit)
     )
     
+    # 🔥 FORMATER LES DONNÉES CORRECTEMENT
+    formatted_orders = []
+    for order in orders_raw:
+        customer = order.get("customer", {})
+        
+        formatted_orders.append({
+            "order_id": order.get("order_id"),
+            # 🔥 CORRIGER : Extraire correctement les coordonnées
+            "customer_name": customer.get("name", "Inconnu"),
+            "customer_phone": customer.get("phone", "N/A"),
+            "customer_address": customer.get("address", "N/A"),
+            "items": order.get("items", []),
+            "subtotal": order.get("subtotal", 0),
+            "delivery_fee": order.get("delivery_fee", 0),
+            "total_price": order.get("total", 0),
+            "payment_method": order.get("payment_method", "cash_on_delivery"),
+            "status": order.get("status", "pending"),
+            "channel": order.get("channel", "web"),
+            "session_id": order.get("session_id"),
+            "created_at": order.get("created_at"),
+            "updated_at": order.get("updated_at")
+        })
+    
     return {
-        "total": len(orders),
-        "orders": orders
+        "total": len(formatted_orders),
+        "orders": formatted_orders
     }
 
 
 @app.get("/admin/orders/stats")
 def admin_orders_stats(x_api_key: str = Header(None)):
     """
-    Get orders statistics for dashboard
+    🔥 Get orders statistics for dashboard (AVEC KPIs AVANCÉS)
     """
     if x_api_key != ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -1126,28 +1151,111 @@ def admin_orders_stats(x_api_key: str = Header(None)):
     db = get_database()
     orders_collection = db["orders"]
     
+    # 🔥 COMPTEURS PAR STATUT
     total_orders = orders_collection.count_documents({})
-    pending_orders = orders_collection.count_documents({"status": "pending"})
-    confirmed_orders = orders_collection.count_documents({"status": "confirmed"})
+    delivered_count = orders_collection.count_documents({"status": "delivered"})
+    confirmed_count = orders_collection.count_documents({"status": "confirmed"})
+    shipped_count = orders_collection.count_documents({"status": "shipped"})
+    pending_count = orders_collection.count_documents({"status": "pending"})
+    cancelled_count = orders_collection.count_documents({"status": "cancelled"})
     
-    # Calculer le chiffre d'affaires total
-    pipeline = [
+    # 🔥 CA ENCAISSÉ (delivered uniquement)
+    pipeline_delivered = [
+        {"$match": {"status": "delivered"}},
         {"$group": {
             "_id": None,
-            "total_revenue": {"$sum": "$total_price"}
+            "total_revenue": {"$sum": "$total"}
         }}
     ]
+    delivered_revenue_result = list(orders_collection.aggregate(pipeline_delivered))
+    delivered_revenue = delivered_revenue_result[0]["total_revenue"] if delivered_revenue_result else 0
     
-    revenue_result = list(orders_collection.aggregate(pipeline))
-    total_revenue = revenue_result[0]["total_revenue"] if revenue_result else 0
+    # 🔥 CA EN TRANSIT (confirmed + shipped)
+    pipeline_transit = [
+        {"$match": {"status": {"$in": ["confirmed", "shipped"]}}},
+        {"$group": {
+            "_id": None,
+            "total_revenue": {"$sum": "$total"}
+        }}
+    ]
+    transit_revenue_result = list(orders_collection.aggregate(pipeline_transit))
+    transit_revenue = transit_revenue_result[0]["total_revenue"] if transit_revenue_result else 0
     
-    # Calculer le panier moyen
-    avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
+    # 🔥 CA TOTAL (delivered + transit)
+    total_revenue = delivered_revenue + transit_revenue
+    
+    # 🔥 COMMANDES ACTIVES (total - cancelled)
+    active_orders = total_orders - cancelled_count
+    
+    # 🔥 COMMANDES EN COURS (confirmed + shipped + pending)
+    in_progress_count = confirmed_count + shipped_count + pending_count
+    
+    # 🔥 PANIER MOYEN (sur commandes actives)
+    avg_order_value = total_revenue / active_orders if active_orders > 0 else 0
     
     return {
+        # Compteurs
         "total_orders": total_orders,
-        "pending_orders": pending_orders,
-        "confirmed_orders": confirmed_orders,
+        "active_orders": active_orders,
+        "delivered_count": delivered_count,
+        "in_progress_count": in_progress_count,
+        "pending_count": pending_count,
+        "confirmed_count": confirmed_count,
+        "shipped_count": shipped_count,
+        "cancelled_count": cancelled_count,
+        
+        # Revenus
+        "delivered_revenue": round(delivered_revenue, 2),
+        "transit_revenue": round(transit_revenue, 2),
         "total_revenue": round(total_revenue, 2),
+        
+        # Moyennes
         "average_order_value": round(avg_order_value, 2)
+    }
+
+
+# 🔥 NOUVEAU ENDPOINT : Mettre à jour le statut d'une commande
+@app.put("/admin/orders/{order_id}/status")
+def update_order_status(
+    order_id: str,
+    status: str,
+    x_api_key: str = Header(None)
+):
+    """
+    Change le statut d'une commande
+    
+    Statuts possibles: pending, confirmed, shipped, delivered, cancelled
+    """
+    # Vérifier l'API Key
+    if x_api_key != ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    # Valider le statut
+    valid_statuses = ["pending", "confirmed", "shipped", "delivered", "cancelled"]
+    
+    if status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Statut invalide. Valeurs possibles : {', '.join(valid_statuses)}"
+        )
+    
+    # Importer OrderManager
+    from app.core.order_manager import OrderManager
+    
+    order_mgr = OrderManager()
+    success = order_mgr.update_order_status(order_id, status)
+    
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commande {order_id} introuvable"
+        )
+    
+    logger.info(f"✅ Statut de la commande {order_id} changé à: {status}")
+    
+    return {
+        "success": True,
+        "order_id": order_id,
+        "new_status": status,
+        "message": f"Statut changé à '{status}'"
     }
