@@ -243,11 +243,27 @@ button:active {
 const messages=document.getElementById("messages");
 const input=document.getElementById("userInput");
 
-// ✅ Génération d'un session_id unique par utilisateur
-const sessionId = 'web_user_' + Math.random().toString(36).substr(2, 9);
+// ✅ session_id stable (ne change pas au refresh)
+let sessionId = localStorage.getItem("session_id");
+if (!sessionId) {
+  sessionId = "web_user_" + Math.random().toString(36).substr(2, 9);
+  localStorage.setItem("session_id", sessionId);
+}
 
-// 🆕 VARIABLE POUR STOCKER L'ÉTAT DE LA CONVERSATION
-let conversationState = null;
+// ✅ conversation_state stable aussi
+let conversationState = localStorage.getItem("conversation_state") || "idle";
+
+// ✅ sécurité: si on recharge la page, on repart en idle
+// (ça évite de rester bloqué sur choice_order_vs_sav:... ou collecting_phone)
+if (conversationState.startsWith("choice_order_vs_sav:") ||
+    conversationState.startsWith("sav_") ||
+    conversationState.startsWith("collecting_") ||
+    conversationState === "order_placed") {
+  conversationState = "idle";
+  localStorage.setItem("conversation_state", "idle");
+}
+console.log("🆔 Session ID:", sessionId);
+console.log("🔄 Initial Conversation State:", conversationState);
 
 // ✅ Stocker les données du dernier message pour le feedback
 let lastBotMessage = null;
@@ -382,7 +398,7 @@ console.log("📊 API RESPONSE:",data);
 // 🆕 SAUVEGARDER LE NOUVEL ÉTAT
 conversationState = data.conversation_state;
 console.log("🔄 Conversation State:", conversationState);
-
+localStorage.setItem("conversation_state", conversationState);
 // ✅ Récupérer la réponse finale
 const answer = data.final_answer || data.answer || "Pas de réponse";
 const messageId = data.message_id || 'msg_' + Date.now();

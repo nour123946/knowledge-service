@@ -76,7 +76,8 @@ class OrderManager:
         # Générer ID de commande
         order_id = self.generate_order_id()
         
-        # Créer la commande
+        # Créer la commande avec status_history
+        now = datetime.utcnow()
         order = {
             "order_id": order_id,
             "session_id": session_id,
@@ -91,9 +92,16 @@ class OrderManager:
             "total": total,
             "payment_method": payment_method,
             "status": "pending",  # pending, confirmed, shipped, delivered, cancelled
+            "tracking_number": None,
             "channel": channel,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "status_history": [{
+                "status": "pending",
+                "changed_at": now,
+                "changed_by": "system",
+                "note": "Order created"
+            }],
+            "created_at": now,
+            "updated_at": now
         }
         
         # Insérer dans MongoDB
@@ -112,18 +120,34 @@ class OrderManager:
         """Récupère toutes les commandes d'une session"""
         return list(self.orders_collection.find({"session_id": session_id}))
     
-    def update_order_status(self, order_id: str, new_status: str) -> bool:
+    def update_order_status(self, order_id: str, new_status: str, note: str = "", changed_by: str = "admin") -> bool:
         """
-        Met à jour le statut d'une commande
+        Met à jour le statut d'une commande et ajoute à l'historique
         
         Status possibles: pending, confirmed, shipped, delivered, cancelled
+        
+        Args:
+            order_id: Order ID
+            new_status: New status
+            note: Optional note explaining the change
+            changed_by: Who made the change (admin, user, system)
         """
+        now = datetime.utcnow()
+        
         result = self.orders_collection.update_one(
             {"order_id": order_id},
             {
                 "$set": {
                     "status": new_status,
-                    "updated_at": datetime.utcnow()
+                    "updated_at": now
+                },
+                "$push": {
+                    "status_history": {
+                        "status": new_status,
+                        "changed_at": now,
+                        "changed_by": changed_by,
+                        "note": note
+                    }
                 }
             }
         )
@@ -132,7 +156,20 @@ class OrderManager:
     
     def cancel_order(self, order_id: str) -> bool:
         """Annule une commande"""
-        return self.update_order_status(order_id, "cancelled")
+        return self.update_order_status(order_id, "cancelled", note="Order canceled", changed_by="admin")
+    
+    def update_tracking_number(self, order_id: str, tracking_number: str, note: str = "Tracking number set") -> bool:
+        """Met à jour le numéro de suivi"""
+        result = self.orders_collection.update_one(
+            {"order_id": order_id},
+            {
+                "$set": {
+                    "tracking_number": tracking_number,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        return result.modified_count > 0
     
     def get_all_orders(self, status: Optional[str] = None) -> list:
         """

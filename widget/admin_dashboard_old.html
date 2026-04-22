@@ -421,289 +421,6 @@
             display: block;
         }
 
-        /* SAV UI enhancements */
-        .sav-toolbar {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            align-items: center;
-            flex-wrap: wrap;
-            margin-bottom: 12px;
-        }
-
-        .sav-view-toggle {
-            display: inline-flex;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            overflow: hidden;
-            background: #fff;
-        }
-
-        body.dark-mode .sav-view-toggle {
-            background: #2a2a3e;
-            border-color: #444;
-        }
-
-        .sav-view-toggle button {
-            border: none;
-            background: transparent;
-            padding: 8px 12px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .sav-view-toggle button.active {
-            background: var(--primary);
-            color: #fff;
-        }
-
-        .sav-summary {
-            color: #666;
-            font-size: 13px;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        body.dark-mode .sav-summary {
-            color: #bbb;
-        }
-
-        .sav-table thead th {
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-
-        .sav-actions {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .copy-btn {
-            border: 1px solid #ddd;
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 5px 8px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        body.dark-mode .copy-btn {
-            background: #353550;
-            border-color: #555;
-            color: #fff;
-        }
-
-        .toast {
-            position: fixed;
-            right: 20px;
-            bottom: 20px;
-            z-index: 4000;
-            padding: 12px 16px;
-            border-radius: 10px;
-            color: #fff;
-            box-shadow: 0 10px 30px rgba(0,0,0,.2);
-            animation: toastIn .2s ease-out;
-        }
-
-        .toast.success { background: #28a745; }
-        .toast.error { background: #dc3545; }
-        .toast.info { background: #17a2b8; }
-
-        @keyframes toastIn {
-            from { transform: translateY(10px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        @keyframes slideOutRight {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(120px); opacity: 0; }
-        }
-
-        .skeleton-row td {
-            position: relative;
-            overflow: hidden;
-            background: #f3f4f6;
-        }
-
-        .skeleton-row td::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
-            animation: skeletonShimmer 1.1s infinite;
-        }
-
-        body.dark-mode .skeleton-row td {
-            background: #2f3144;
-        }
-
-        @keyframes skeletonShimmer {
-            from { transform: translateX(-100%); }
-            to { transform: translateX(100%); }
-        }
-
-        .ticket-modal-grid {
-            display: grid;
-            grid-template-columns: 1.2fr 1fr;
-            gap: 16px;
-        }
-
-        @media (max-width: 900px) {
-            .ticket-modal-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .ticket-box {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 14px;
-        }
-
-        body.dark-mode .ticket-box {
-            background: #1e1e2e;
-            border-color: #444;
-        }
-
-        .ticket-box h4 {
-            margin-bottom: 10px;
-            color: var(--primary);
-        }
-
-        .ticket-meta-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-        }
-
-        .ticket-field label {
-            display: block;
-            font-size: 12px;
-            color: #777;
-            margin-bottom: 4px;
-            font-weight: 600;
-        }
-
-        body.dark-mode .ticket-field label { color: #bbb; }
-
-        .ticket-field .value,
-        .ticket-field input,
-        .ticket-field textarea,
-        .ticket-field select {
-            width: 100%;
-            font: inherit;
-        }
-
-        .ticket-field input,
-        .ticket-field textarea,
-        .ticket-field select {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            background: #fff;
-            color: inherit;
-        }
-
-        body.dark-mode .ticket-field input,
-        body.dark-mode .ticket-field textarea,
-        body.dark-mode .ticket-field select {
-            background: #353550;
-            border-color: #555;
-            color: #fff;
-        }
-
-        .ticket-thread {
-            max-height: 260px;
-            overflow: auto;
-            display: grid;
-            gap: 8px;
-        }
-
-        .thread-item {
-            padding: 10px 12px;
-            border-radius: 10px;
-            background: #fff;
-            border: 1px solid #e9ecef;
-        }
-
-        body.dark-mode .thread-item {
-            background: #2f3144;
-            border-color: #444;
-        }
-
-        .timeline {
-            display: grid;
-            gap: 8px;
-        }
-
-        .timeline-item {
-            padding: 10px 12px;
-            background: #fff;
-            border: 1px solid #e9ecef;
-            border-radius: 10px;
-        }
-
-        body.dark-mode .timeline-item {
-            background: #2f3144;
-            border-color: #444;
-        }
-
-        .pipeline-wrapper {
-            display: grid;
-            grid-template-columns: repeat(5, minmax(180px, 1fr));
-            gap: 12px;
-            overflow-x: auto;
-            padding-bottom: 8px;
-        }
-
-        .pipeline-col {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 14px;
-            padding: 12px;
-            min-height: 220px;
-        }
-
-        body.dark-mode .pipeline-col {
-            background: #1e1e2e;
-            border-color: #444;
-        }
-
-        .pipeline-col h4 {
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .pipeline-card {
-            background: #fff;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 10px;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,.04);
-        }
-
-        body.dark-mode .pipeline-card {
-            background: #2f3144;
-            border-color: #444;
-        }
-
-        .pipeline-card .mini {
-            font-size: 12px;
-            color: #777;
-        }
-
-        body.dark-mode .pipeline-card .mini { color: #bbb; }
-
         /* Search Box */
         .search-box {
             position: relative;
@@ -1068,410 +785,6 @@
                 padding: 10px 8px;
             }
         }
-
-            /* ===== AMÉLIORATIONS UI: Onglets + Modals + Features ===== */
-        
-            /* Onglets Navigation */
-            .ops-tabs {
-                display: flex;
-                gap: 10px;
-                margin: 30px 0 20px 0;
-                border-bottom: 2px solid #ddd;
-                list-style: none;
-            }
-
-            body.dark-mode .ops-tabs {
-                border-bottom-color: #444;
-            }
-
-            .ops-tab {
-                padding: 12px 24px;
-                background: transparent;
-                border: none;
-                cursor: pointer;
-                font-size: 16px;
-                font-weight: 500;
-                color: #666;
-                transition: all 0.3s;
-                border-bottom: 3px solid transparent;
-            }
-
-            body.dark-mode .ops-tab {
-                color: #999;
-            }
-
-            .ops-tab:hover {
-                color: var(--primary);
-            }
-
-            .ops-tab.active {
-                color: var(--primary);
-                border-bottom-color: var(--primary);
-                font-weight: 600;
-            }
-
-            /* Panes */
-            .ops-pane {
-                display: none;
-            }
-
-            .ops-pane.active {
-                display: block;
-            }
-
-            /* Sticky Table Headers */
-            thead {
-                position: sticky;
-                top: 0;
-                background: #f8f9fa;
-                z-index: 10;
-            }
-
-            body.dark-mode thead {
-                background: #2a2a3e;
-            }
-
-            /* Copy Button */
-            .copy-btn {
-                padding: 4px 8px;
-                font-size: 12px;
-                background: #e9ecef;
-                border: 1px solid #dee2e6;
-                border-radius: 4px;
-                cursor: pointer;
-                margin-left: 5px;
-            }
-
-            body.dark-mode .copy-btn {
-                background: #353550;
-                border-color: #555;
-            }
-
-            .copy-btn:hover {
-                background: #dee2e6;
-            }
-
-            /* Toast Notifications */
-            .toast {
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: var(--success);
-                color: white;
-                padding: 15px 20px;
-                border-radius: 6px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-                animation: slideInRight 0.3s;
-                z-index: 2000;
-            }
-
-            @keyframes slideInRight {
-                from { transform: translateX(400px); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-
-            .toast.error {
-                background: var(--danger);
-            }
-
-            /* Modals */
-            .modal {
-                display: none;
-                position: fixed;
-                z-index: 1000;
-                left: 0;
-                top: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(0,0,0,0.6);
-                animation: fadeIn 0.3s;
-            }
-
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-
-            .modal.show {
-                display: block;
-            }
-
-            .modal-content {
-                background-color: white;
-                margin: 10% auto;
-                padding: 0;
-                border-radius: 8px;
-                max-width: 800px;
-                max-height: 90vh;
-                overflow-y: auto;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-                animation: slideIn 0.3s;
-            }
-
-            body.dark-mode .modal-content {
-                background-color: #2a2a3e;
-            }
-
-            @keyframes slideIn {
-                from { transform: translateY(-50px); opacity: 0; }
-                to { transform: translateY(0); opacity: 1; }
-            }
-
-            .modal-header {
-                padding: 20px;
-                border-bottom: 1px solid #ddd;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                background: #f8f9fa;
-            }
-
-            body.dark-mode .modal-header {
-                background: #1e1e2e;
-                border-bottom-color: #444;
-            }
-
-            .modal-header h2 {
-                font-size: 22px;
-                margin: 0;
-                color: var(--text-dark);
-            }
-
-            body.dark-mode .modal-header h2 {
-                color: var(--text-light);
-            }
-
-            .close-btn {
-                background: none;
-                border: none;
-                font-size: 28px;
-                color: #999;
-                cursor: pointer;
-            }
-
-            .close-btn:hover {
-                color: #333;
-            }
-
-            .modal-body {
-                padding: 20px;
-            }
-
-            .modal-section {
-                margin-bottom: 25px;
-            }
-
-            .modal-section h3 {
-                font-size: 16px;
-                font-weight: 600;
-                margin-bottom: 15px;
-                color: var(--primary);
-                border-bottom: 2px solid #ddd;
-                padding-bottom: 8px;
-            }
-
-            body.dark-mode .modal-section h3 {
-                border-bottom-color: #444;
-            }
-
-            .info-row {
-                display: flex;
-                gap: 20px;
-                margin-bottom: 12px;
-                align-items: center;
-            }
-
-            .info-col {
-                flex: 1;
-            }
-
-            .info-label {
-                font-size: 13px;
-                color: #888;
-                font-weight: 500;
-                margin-bottom: 4px;
-            }
-
-            body.dark-mode .info-label {
-                color: #bbb;
-            }
-
-            .info-value {
-                font-size: 14px;
-                font-weight: 500;
-                color: var(--text-dark);
-                word-break: break-word;
-            }
-
-            body.dark-mode .info-value {
-                color: var(--text-light);
-            }
-
-            /* Timeline */
-            .timeline {
-                position: relative;
-                padding: 20px 0;
-            }
-
-            .timeline-item {
-                display: flex;
-                gap: 20px;
-                margin-bottom: 20px;
-                position: relative;
-            }
-
-            .timeline-dot {
-                width: 14px;
-                height: 14px;
-                background: var(--primary);
-                border-radius: 50%;
-                flex-shrink: 0;
-                margin-top: 4px;
-                border: 3px solid white;
-                box-shadow: 0 0 0 2px var(--primary);
-            }
-
-            body.dark-mode .timeline-dot {
-                border-color: #2a2a3e;
-            }
-
-            .timeline-line {
-                position: absolute;
-                left: 20px;
-                top: 30px;
-                bottom: -20px;
-                width: 2px;
-                background: #ddd;
-            }
-
-            body.dark-mode .timeline-line {
-                background: #404854;
-            }
-
-            .timeline-item:last-child .timeline-line {
-                display: none;
-            }
-
-            .timeline-content {
-                flex: 1;
-            }
-
-            .timeline-status {
-                font-weight: 600;
-                color: var(--primary);
-                margin-bottom: 4px;
-            }
-
-            .timeline-time {
-                font-size: 12px;
-                color: #999;
-            }
-
-            /* Badges */
-            .badge {
-                display: inline-block;
-                padding: 6px 12px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: 600;
-                white-space: nowrap;
-            }
-
-            .badge-open { background: #e3f2fd; color: #1976d2; }
-            .badge-in_progress { background: #fff3cd; color: #856404; }
-            .badge-resolved { background: #d4edda; color: #155724; }
-            .badge-cancelled { background: #f8d7da; color: #721c24; }
-
-            .category-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-                padding: 6px 12px;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 500;
-            }
-
-            .cat-exchange { background: #e1f5fe; color: #01579b; }
-            .cat-delivery { background: #f3e5f5; color: #4a148c; }
-            .cat-refund { background: #fce4ec; color: #880e4f; }
-            .cat-defective { background: #fff3e0; color: #e65100; }
-
-            /* Pagination */
-            .pagination {
-                display: flex;
-                justify-content: center;
-                gap: 5px;
-                margin-top: 20px;
-                align-items: center;
-            }
-
-            .pagination button, .pagination span {
-                padding: 8px 12px;
-                border: 1px solid #ddd;
-                background: white;
-                color: var(--text-dark);
-                cursor: pointer;
-                border-radius: 4px;
-                font-size: 14px;
-            }
-
-            body.dark-mode .pagination button, body.dark-mode .pagination span {
-                background: #353550;
-                color: var(--text-light);
-                border-color: #555;
-            }
-
-            .pagination button:hover {
-                background: var(--primary);
-                color: white;
-                border-color: var(--primary);
-            }
-
-            .pagination .active {
-                background: var(--primary);
-                color: white;
-                border-color: var(--primary);
-            }
-
-            /* Modal Footer */
-            .modal-footer {
-                padding: 15px 20px;
-                border-top: 1px solid #ddd;
-                display: flex;
-                gap: 10px;
-                justify-content: flex-end;
-                background: #f8f9fa;
-            }
-
-            body.dark-mode .modal-footer {
-                background: #1e1e2e;
-                border-top-color: #444;
-            }
-
-            textarea {
-                width: 100%;
-                padding: 10px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-                font-family: inherit;
-                font-size: 14px;
-                resize: vertical;
-                min-height: 100px;
-                color: var(--text-dark);
-                background: white;
-            }
-
-            body.dark-mode textarea {
-                background: #353550;
-                color: var(--text-light);
-                border-color: #555;
-            }
-
-            .btn-sm {
-                padding: 6px 12px;
-                font-size: 12px;
-            }
     </style>
 </head>
 <body>
@@ -1765,12 +1078,11 @@
         <div id="ops-pane-sav" class="ops-pane" style="padding: 0 0 10px 0;">
             <div class="table-header">
                 <h3>🛠️ Tickets SAV</h3>
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <div style="display:flex; gap:8px; align-items:center;">
                     <select id="savFilterStatus" onchange="applySavFilters()" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
                         <option value="">Tous statuts</option>
                         <option value="open">open</option>
                         <option value="in_progress">in_progress</option>
-                        <option value="waiting_customer">waiting_customer</option>
                         <option value="resolved">resolved</option>
                         <option value="canceled">canceled</option>
                     </select>
@@ -1785,20 +1097,7 @@
                 </div>
             </div>
 
-            <div class="sav-toolbar">
-                <div class="sav-view-toggle">
-                    <button id="savViewListBtn" class="active" onclick="setSavViewMode('list')">Liste</button>
-                    <button id="savViewPipelineBtn" onclick="setSavViewMode('pipeline')">Pipeline</button>
-                </div>
-                <div class="sav-summary">
-                    <span id="savCount">Affichage 0–0 / 0</span>
-                    <span id="savLoadingHint"></span>
-                </div>
-            </div>
-
-            <div id="savKanbanView" style="display:none; margin-bottom: 10px;"></div>
-
-            <table class="sav-table">
+            <table>
                 <thead>
                     <tr>
                         <th>Ticket</th>
@@ -1820,8 +1119,6 @@
                     </tr>
                 </tbody>
             </table>
-
-            <div id="savPagination" class="pagination"></div>
         </div>
     </div>
 
@@ -1837,17 +1134,6 @@
         <div class="modal-body" id="modalBody">
             <!-- Content will be inserted here -->
         </div>
-    </div>
-</div>
-
-<!-- Ticket SAV Modal -->
-<div class="modal" id="ticketModal" style="display:none;">
-    <div class="modal-content" style="max-width: 1100px; width: 96%;">
-        <div class="modal-header">
-            <h2 id="ticketModalTitle">Détails Ticket SAV</h2>
-            <button class="close-btn" onclick="closeTicketModal()">×</button>
-        </div>
-        <div class="modal-body" id="ticketModalBody"></div>
     </div>
 </div>
 
@@ -1867,10 +1153,6 @@ let sortDirection = 'desc';
 let charts = {};
 let allSavTickets = [];
 let filteredSavTickets = [];
-let savCurrentPage = 1;
-let savPageSize = 8;
-let savViewMode = 'list';
-let currentSavTicket = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -2054,36 +1336,9 @@ async function loadOrders() {
     }
 }
 
-function showSavSkeleton() {
-    const tbody = document.getElementById('savTicketsTableBody');
-    if (!tbody) return;
-    tbody.innerHTML = Array.from({ length: 4 }).map(() => `
-        <tr class="skeleton-row">
-            <td colspan="8" style="height: 52px;"></td>
-        </tr>
-    `).join('');
-    const hint = document.getElementById('savLoadingHint');
-    if (hint) hint.textContent = 'Chargement…';
-}
-
-function applyPagination(rows, pageSize, page) {
-    const total = rows.length;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const current = Math.min(Math.max(page || 1, 1), totalPages);
-    const start = (current - 1) * pageSize;
-    const end = Math.min(start + pageSize, total);
-    return { pageRows: rows.slice(start, end), current, total, totalPages, start, end };
-}
-
 async function loadSavTickets() {
     try {
-        showSavSkeleton();
-        const startedAt = Date.now();
-        const data = await fetchAPI('/admin/sav-tickets?limit=200');
-        const elapsed = Date.now() - startedAt;
-        if (elapsed < 350) {
-            await new Promise(resolve => setTimeout(resolve, 350 - elapsed));
-        }
+        const data = await fetchAPI('/admin/sav-tickets?limit=100');
         allSavTickets = data.tickets || [];
         applySavFilters();
     } catch (error) {
@@ -2091,8 +1346,6 @@ async function loadSavTickets() {
         document.getElementById('savTicketsTableBody').innerHTML = `
             <tr><td colspan="8" style="text-align:center; color: red;">❌ Erreur de chargement SAV</td></tr>
         `;
-        const hint = document.getElementById('savLoadingHint');
-        if (hint) hint.textContent = '';
     }
 }
 
@@ -2106,74 +1359,32 @@ function applySavFilters() {
         return true;
     });
 
-    savCurrentPage = 1;
     renderSavTicketsTable(filteredSavTickets);
 }
 
 function renderSavTicketsTable(tickets) {
-    if (savViewMode === 'pipeline') {
-        renderKanban(tickets);
-        return;
-    }
-
     const tbody = document.getElementById('savTicketsTableBody');
-    const pagination = applyPagination(tickets || [], savPageSize, savCurrentPage);
-    savCurrentPage = pagination.current;
-
-    const countEl = document.getElementById('savCount');
-    if (countEl) {
-        countEl.textContent = `Affichage ${pagination.total === 0 ? 0 : pagination.start + 1}–${pagination.end} / ${pagination.total}`;
-    }
-
-    const paginationEl = document.getElementById('savPagination');
-    if (paginationEl) {
-        if (pagination.totalPages <= 1) {
-            paginationEl.innerHTML = '';
-        } else {
-            paginationEl.innerHTML = `
-                <button ${pagination.current === 1 ? 'disabled' : ''} onclick="setSavPage(${pagination.current - 1})">◀</button>
-                ${Array.from({ length: pagination.totalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    const show = p === 1 || p === pagination.totalPages || Math.abs(p - pagination.current) <= 1;
-                    return show ? `<button class="${p === pagination.current ? 'active' : ''}" onclick="setSavPage(${p})">${p}</button>` : '';
-                }).join('')}
-                <button ${pagination.current === pagination.totalPages ? 'disabled' : ''} onclick="setSavPage(${pagination.current + 1})">▶</button>
-            `;
-        }
-    }
-
     if (!tickets || tickets.length === 0) {
         tbody.innerHTML = `
             <tr><td colspan="8" style="text-align:center; padding: 30px;">📭 Aucun ticket SAV</td></tr>
         `;
-        const hint = document.getElementById('savLoadingHint');
-        if (hint) hint.textContent = '';
         return;
     }
 
-    const pageTickets = pagination.pageRows;
-    tbody.innerHTML = pageTickets.map(t => `
+    tbody.innerHTML = tickets.map(t => `
         <tr>
-            <td data-ticket-id="${t.ticket_id || ''}" data-category="${t.category || ''}" data-status="${t.status || ''}">
-                <code>${t.ticket_id || 'N/A'}</code><br>
-                <button class="copy-btn" onclick="copyToClipboard('${(t.ticket_id || '').replace(/'/g, "&#39;")}')">Copier</button>
-            </td>
-            <td data-order-id="${t.order_id || ''}">
-                <code>${t.order_id || 'N/A'}</code><br>
-                <button class="copy-btn" onclick="copyToClipboard('${(t.order_id || '').replace(/'/g, "&#39;")}')">Copier</button>
-            </td>
-            <td><span class="badge badge-info" data-category-raw="${t.category || ''}">${getSavCategoryBadge(t.category)}</span></td>
-            <td data-status-raw="${t.status || ''}">${getSavStatusBadge(t.status)}</td>
+            <td><code>${t.ticket_id || 'N/A'}</code></td>
+            <td><code>${t.order_id || 'N/A'}</code></td>
+            <td><span class="badge badge-info">${t.category || '-'}</span></td>
+            <td>${getSavStatusBadge(t.status)}</td>
             <td>${truncate(t.summary || '-', 60)}</td>
             <td>${truncate(t.last_user_message || '-', 60)}</td>
             <td>${formatDate(t.updated_at)}</td>
             <td>
-                <div class="sav-actions">
-                    <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 12px;" onclick="openTicketModal('${t.ticket_id}')">🔎 Détails</button>
+                <div style="display:flex; gap:6px; align-items:center;">
                     <select id="sav-status-${t.ticket_id}" style="padding:6px; border-radius:6px; border:1px solid #ddd; font-size:12px;">
                         <option value="open" ${(t.status || '') === 'open' ? 'selected' : ''}>open</option>
                         <option value="in_progress" ${(t.status || '') === 'in_progress' ? 'selected' : ''}>in_progress</option>
-                        <option value="waiting_customer" ${(t.status || '') === 'waiting_customer' ? 'selected' : ''}>waiting_customer</option>
                         <option value="resolved" ${(t.status || '') === 'resolved' ? 'selected' : ''}>resolved</option>
                         <option value="canceled" ${(t.status || '') === 'canceled' ? 'selected' : ''}>canceled</option>
                     </select>
@@ -2185,17 +1396,12 @@ function renderSavTicketsTable(tickets) {
             </td>
         </tr>
     `).join('');
-
-    const hint = document.getElementById('savLoadingHint');
-    if (hint) hint.textContent = '';
 }
 
-async function changeSavTicketStatus(ticketId, forcedStatus = null) {
+async function changeSavTicketStatus(ticketId) {
     const select = document.getElementById(`sav-status-${ticketId}`);
-    const newStatus = forcedStatus || select?.value;
-    if (!newStatus) return;
-
-    if (select && forcedStatus) select.value = forcedStatus;
+    if (!select) return;
+    const newStatus = select.value;
 
     if (!confirm(`Changer le statut du ticket ${ticketId} à "${newStatus}" ?`)) {
         return;
@@ -2215,51 +1421,19 @@ async function changeSavTicketStatus(ticketId, forcedStatus = null) {
 
         await response.json();
         await loadSavTickets();
-        showToast('Statut ticket mis à jour', 'success');
     } catch (error) {
         console.error('Erreur changement statut SAV:', error);
-        showToast('Erreur lors du changement de statut SAV', 'error');
+        alert('❌ Erreur lors du changement de statut SAV');
     }
 }
 
 function getSavStatusBadge(status) {
     const s = (status || '').toLowerCase();
-    if (s === 'open') return '<span class="badge badge-warning">Ouvert</span>';
-    if (s === 'in_progress') return '<span class="badge badge-info">En cours</span>';
-    if (s === 'waiting_customer') return '<span class="badge badge-info">En attente client</span>';
-    if (s === 'resolved') return '<span class="badge badge-success">Résolu</span>';
-    if (s === 'canceled') return '<span class="badge badge-danger">Annulé</span>';
+    if (s === 'open') return '<span class="badge badge-warning">open</span>';
+    if (s === 'in_progress') return '<span class="badge badge-info">in_progress</span>';
+    if (s === 'resolved') return '<span class="badge badge-success">resolved</span>';
+    if (s === 'canceled') return '<span class="badge badge-danger">canceled</span>';
     return `<span class="badge">${status || '-'}</span>`;
-}
-
-function getSavCategoryBadge(category) {
-    const s = (category || '').toLowerCase();
-    if (s === 'exchange_return') return '🔁 Échange/Retour';
-    if (s === 'delivery_issue') return '🚚 Livraison';
-    if (s === 'refund_cancel') return '💸 Annulation/Remb.';
-    if (s === 'defective') return '⚠️ Défaut';
-    return category || '-';
-}
-
-function setSavPage(page) {
-    savCurrentPage = page;
-    renderSavTicketsTable(filteredSavTickets);
-}
-
-function setSavViewMode(mode) {
-    savViewMode = mode;
-    document.getElementById('savViewListBtn')?.classList.toggle('active', mode === 'list');
-    document.getElementById('savViewPipelineBtn')?.classList.toggle('active', mode === 'pipeline');
-    document.getElementById('savTicketsTableBody').closest('table').style.display = mode === 'list' ? '' : 'none';
-    document.getElementById('savPagination').style.display = mode === 'list' ? '' : 'none';
-    document.getElementById('savKanbanView').style.display = mode === 'pipeline' ? '' : 'none';
-    renderSavTicketsTable(filteredSavTickets);
-}
-
-async function quickSavStatus(ticketId, newStatus) {
-    const select = document.getElementById(`sav-status-${ticketId}`);
-    if (select) select.value = newStatus;
-    await changeSavTicketStatus(ticketId, newStatus);
 }
 
 function renderOrdersTable(orders) {
@@ -2323,314 +1497,6 @@ function getPaymentBadge(method) {
         'bank_transfer': '<span class="badge">🏦 Virement</span>'
     };
     return badges[method] || '<span class="badge">❓ Non spécifié</span>';
-}
-
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-async function openTicketModal(ticketId) {
-    currentSavTicket = null;
-    const modal = document.getElementById('ticketModal');
-    const body = document.getElementById('ticketModalBody');
-    const title = document.getElementById('ticketModalTitle');
-
-    modal.style.display = 'flex';
-    title.textContent = `Détails Ticket SAV: ${ticketId}`;
-    body.innerHTML = '<div class="loading"><div class="spinner"></div>Chargement du ticket...</div>';
-
-    try {
-        let ticket = null;
-        try {
-            ticket = await fetchAPI(`/admin/sav-tickets/${encodeURIComponent(ticketId)}`);
-        } catch (error) {
-            ticket = (allSavTickets || []).find(t => t.ticket_id === ticketId) || null;
-        }
-
-        if (!ticket) {
-            throw new Error('Ticket introuvable');
-        }
-
-        let order = null;
-        if (ticket.order_id) {
-            try {
-                order = await fetchAPI(`/admin/orders/${encodeURIComponent(ticket.order_id)}`);
-            } catch (error) {
-                order = null;
-            }
-        }
-
-        currentSavTicket = { ...ticket, order };
-        renderTicketModal(currentSavTicket);
-    } catch (error) {
-        console.error(error);
-        body.innerHTML = `
-            <div class="ticket-box">
-                <strong>Impossible de charger le détail complet.</strong><br>
-                <span>Le ticket sera affiché avec les données disponibles.</span>
-            </div>
-        `;
-        const fallback = (allSavTickets || []).find(t => t.ticket_id === ticketId) || { ticket_id: ticketId };
-        currentSavTicket = fallback;
-        renderTicketModal(fallback);
-    }
-}
-
-function closeTicketModal() {
-    const modal = document.getElementById('ticketModal');
-    if (modal) modal.style.display = 'none';
-    currentSavTicket = null;
-}
-
-function renderTicketModal(ticket) {
-    const body = document.getElementById('ticketModalBody');
-    const title = document.getElementById('ticketModalTitle');
-    const order = ticket.order || ticket.order_details || ticket.order_info || null;
-    const orderCustomer = order?.customer || {};
-    const phone = orderCustomer.phone || order?.customer_phone || ticket.customer_phone || ticket.phone || '-';
-    const address = orderCustomer.address || order?.customer_address || ticket.address || '-';
-    const customerName = orderCustomer.name || order?.customer_name || ticket.customer_name || '-';
-    const orderStatus = order?.status || ticket.order_status || '-';
-    const history = Array.isArray(ticket.status_history) ? ticket.status_history : [];
-    const messages = Array.isArray(ticket.messages_thread) && ticket.messages_thread.length > 0
-        ? ticket.messages_thread
-        : (ticket.last_user_message ? [{ role: 'user', content: ticket.last_user_message, created_at: ticket.updated_at }] : []);
-    const categoryLabel = getSavCategoryBadge(ticket.category);
-    const statusValue = (ticket.status || 'open').toLowerCase();
-
-    title.textContent = `Ticket SAV ${ticket.ticket_id || ''}`;
-
-    body.innerHTML = `
-        <div class="ticket-modal-grid">
-            <div>
-                <div class="ticket-box">
-                    <h4>Infos commande</h4>
-                    <div class="ticket-meta-grid">
-                        <div class="ticket-field">
-                            <label>Order ID</label>
-                            <div class="value"><code>${escapeHtml(ticket.order_id || order?.order_id || 'N/A')}</code> <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(ticket.order_id || order?.order_id || '')}')">Copier</button></div>
-                        </div>
-                        <div class="ticket-field">
-                            <label>Client</label>
-                            <div class="value">${escapeHtml(customerName)}</div>
-                        </div>
-                        <div class="ticket-field">
-                            <label>Téléphone</label>
-                            <div class="value"><code>${escapeHtml(phone)}</code> <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(phone)}')">Copier</button></div>
-                        </div>
-                        <div class="ticket-field">
-                            <label>Adresse</label>
-                            <div class="value">${escapeHtml(address)}</div>
-                        </div>
-                        <div class="ticket-field">
-                            <label>Statut commande</label>
-                            <div class="value">${getOrderStatusBadge(orderStatus)}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="ticket-box">
-                    <h4>Historique statuts</h4>
-                    ${history.length ? `<div class="timeline">${history.map(item => `
-                        <div class="timeline-item">
-                            <div><strong>${getSavStatusBadge(item.status)}</strong> <span class="mini">${escapeHtml(item.reason || item.changed_by || '')}</span></div>
-                            <div class="mini">${formatDate(item.changed_at)}</div>
-                        </div>
-                    `).join('')}</div>` : '<div class="mini">Aucun historique</div>'}
-                </div>
-
-                <div class="ticket-box">
-                    <h4>Thread messages</h4>
-                    <div class="ticket-thread">
-                        ${messages.map(msg => `
-                            <div class="thread-item">
-                                <div><strong>${escapeHtml((msg.role || 'user').toUpperCase())}</strong> <span class="mini">${formatDate(msg.created_at || msg.ts || ticket.updated_at)}</span></div>
-                                <div>${escapeHtml(msg.content || msg.text || '')}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-
-            <div>
-                <div class="ticket-box">
-                    <h4>Infos ticket</h4>
-                    <div class="ticket-meta-grid">
-                        <div class="ticket-field">
-                            <label>Ticket ID</label>
-                            <div class="value"><code>${escapeHtml(ticket.ticket_id || '')}</code> <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(ticket.ticket_id || '')}')">Copier</button></div>
-                        </div>
-                        <div class="ticket-field">
-                            <label>Catégorie</label>
-                            <div class="value"><span class="badge badge-info" data-category="${escapeHtml(ticket.category || '')}">${escapeHtml(categoryLabel)}</span></div>
-                        </div>
-                        <div class="ticket-field">
-                            <label>Statut</label>
-                            <select id="ticketStatusSelect">
-                                <option value="open" ${statusValue === 'open' ? 'selected' : ''}>Ouvert</option>
-                                <option value="in_progress" ${statusValue === 'in_progress' ? 'selected' : ''}>En cours</option>
-                                <option value="waiting_customer" ${statusValue === 'waiting_customer' ? 'selected' : ''}>En attente client</option>
-                                <option value="resolved" ${statusValue === 'resolved' ? 'selected' : ''}>Résolu</option>
-                                <option value="canceled" ${statusValue === 'canceled' ? 'selected' : ''}>Annulé</option>
-                            </select>
-                        </div>
-                        <div class="ticket-field">
-                            <label>Updated at</label>
-                            <div class="value">${formatDate(ticket.updated_at)}</div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 10px; display:flex; gap:8px; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="saveTicketStatusAndNotes('${escapeHtml(ticket.ticket_id || '')}')">Enregistrer</button>
-                        <button class="btn btn-success" onclick="markTicketResolved('${escapeHtml(ticket.ticket_id || '')}')">Marquer comme résolu</button>
-                    </div>
-                </div>
-
-                <div class="ticket-box">
-                    <h4>Administration</h4>
-                    <div class="ticket-field" style="margin-bottom:10px;">
-                        <label>Note interne</label>
-                        <textarea id="ticketInternalNote" rows="4" placeholder="Ajouter une note interne...">${escapeHtml(ticket.internal_note || '')}</textarea>
-                    </div>
-                    <div class="ticket-field" style="margin-bottom:10px;">
-                        <label>Action prise</label>
-                        <textarea id="ticketAdminAction" rows="4" placeholder="Décrire l'action prise...">${escapeHtml(ticket.admin_action || '')}</textarea>
-                    </div>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button class="btn btn-secondary" onclick="saveTicketAdminFields('${escapeHtml(ticket.ticket_id || '')}')">Sauvegarder note/action</button>
-                    </div>
-                </div>
-
-                <div class="ticket-box">
-                    <h4>Résolution</h4>
-                    <div class="ticket-field">
-                        <label>Pourquoi ?</label>
-                        <textarea id="ticketResolveReason" rows="3" placeholder="Raison obligatoire si résolu"></textarea>
-                    </div>
-                    <div style="margin-top:10px;">
-                        <button class="btn btn-danger" onclick="markTicketResolved('${escapeHtml(ticket.ticket_id || '')}')">Marquer comme résolu</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-async function saveTicketStatusAndNotes(ticketId) {
-    const status = document.getElementById('ticketStatusSelect')?.value || 'open';
-    const reason = document.getElementById('ticketResolveReason')?.value || '';
-    const internalNote = document.getElementById('ticketInternalNote')?.value || '';
-    const adminAction = document.getElementById('ticketAdminAction')?.value || '';
-
-    if (status === 'resolved' && !reason.trim()) {
-        showToast('Pourquoi ? est obligatoire si résolu', 'error');
-        return;
-    }
-
-    try {
-        const statusResp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/status?status=${encodeURIComponent(status)}&reason=${encodeURIComponent(status === 'resolved' ? reason : '')}`, {
-            method: 'POST',
-            headers: { 'x-api-key': API_KEY }
-        });
-        if (!statusResp.ok) throw new Error(`HTTP ${statusResp.status}`);
-
-        const noteResp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/note?internal_note=${encodeURIComponent(internalNote)}&admin_action=${encodeURIComponent(adminAction)}`, {
-            method: 'POST',
-            headers: { 'x-api-key': API_KEY }
-        });
-        if (!noteResp.ok) throw new Error(`HTTP ${noteResp.status}`);
-
-        showToast('Ticket SAV mis à jour', 'success');
-        await loadSavTickets();
-        await openTicketModal(ticketId);
-    } catch (error) {
-        console.error(error);
-        showToast('Impossible de sauvegarder le ticket', 'error');
-    }
-}
-
-async function saveTicketAdminFields(ticketId) {
-    const internalNote = document.getElementById('ticketInternalNote')?.value || '';
-    const adminAction = document.getElementById('ticketAdminAction')?.value || '';
-
-    try {
-        const resp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/note?internal_note=${encodeURIComponent(internalNote)}&admin_action=${encodeURIComponent(adminAction)}`, {
-            method: 'POST',
-            headers: { 'x-api-key': API_KEY }
-        });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        showToast('Note/action sauvegardées', 'success');
-        await loadSavTickets();
-        await openTicketModal(ticketId);
-    } catch (error) {
-        console.error(error);
-        showToast('Impossible de sauvegarder note/action', 'error');
-    }
-}
-
-async function markTicketResolved(ticketId) {
-    const reason = document.getElementById('ticketResolveReason')?.value?.trim() || '';
-    if (!reason) {
-        showToast('Pourquoi ? est obligatoire pour résoudre', 'error');
-        return;
-    }
-
-    try {
-        await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/status?status=resolved&reason=${encodeURIComponent(reason)}`, {
-            method: 'POST',
-            headers: { 'x-api-key': API_KEY }
-        });
-        showToast('Ticket marqué comme résolu', 'success');
-        await loadSavTickets();
-        await openTicketModal(ticketId);
-    } catch (error) {
-        console.error(error);
-        showToast('Impossible de résoudre le ticket', 'error');
-    }
-}
-
-function renderKanban(tickets) {
-    const mount = document.getElementById('savKanbanView');
-    if (!mount) return;
-
-    const groups = [
-        { status: 'open', title: 'Ouvert' },
-        { status: 'in_progress', title: 'En cours' },
-        { status: 'waiting_customer', title: 'En attente client' },
-        { status: 'resolved', title: 'Résolu' },
-        { status: 'canceled', title: 'Annulé' },
-    ];
-
-    mount.innerHTML = `<div class="pipeline-wrapper">${groups.map(group => {
-        const groupTickets = (tickets || []).filter(t => (t.status || '').toLowerCase() === group.status);
-        return `
-            <div class="pipeline-col">
-                <h4>${group.title} <span class="badge badge-info">${groupTickets.length}</span></h4>
-                ${groupTickets.map(t => `
-                    <div class="pipeline-card">
-                        <div><strong>${escapeHtml(t.ticket_id || '')}</strong></div>
-                        <div class="mini">${escapeHtml(t.order_id || 'N/A')}</div>
-                        <div class="mini">${escapeHtml(getSavCategoryBadge(t.category))}</div>
-                        <div class="mini">${escapeHtml(truncate(t.summary || '-', 80))}</div>
-                        <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
-                            <button class="btn btn-secondary" style="padding:5px 8px; font-size:12px;" onclick="openTicketModal('${escapeHtml(t.ticket_id || '')}')">Détails</button>
-                            <button class="btn btn-primary" style="padding:5px 8px; font-size:12px;" onclick="quickSavStatus('${escapeHtml(t.ticket_id || '')}', 'in_progress')">En cours</button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }).join('')}</div>`;
-}
-
-async function quickSavStatus(ticketId, newStatus) {
-    const select = document.getElementById(`sav-status-${ticketId}`);
-    if (select) select.value = newStatus;
-    await changeSavTicketStatus(ticketId);
 }
 
 function viewOrder(order) {
@@ -3131,10 +1997,6 @@ window.onclick = function(event) {
     if (event.target === modal) {
         closeModal();
     }
-    const ticketModal = document.getElementById('ticketModal');
-    if (event.target === ticketModal) {
-        closeTicketModal();
-    }
 }
 
 // ===== CHARTS =====
@@ -3359,49 +2221,6 @@ function refreshAll() {
     loadConversations();
     loadOrders();
     loadSavTickets();
-}
-
-// ===== MODAL & UI FUNCTIONS =====
-
-function openModal(title, content) {
-    const modal = document.getElementById('conversationModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-
-    modalTitle.textContent = title;
-    modalBody.innerHTML = content;
-    modal.classList.add('show');
-    modal.style.display = 'flex';
-}
-
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-        toast.style.animation = 'slideOutRight 0.3s';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-function copyToClipboard(text, label = 'Copié') {
-    navigator.clipboard.writeText(text).then(() => {
-        showToast(`${label}!`);
-    }).catch(() => {
-        showToast('Erreur de copie', 'error');
-    });
-}
-
-function getStatusBadge(status) {
-    const statusMap = {
-        'open': '<span class="badge badge-open">Ouvert</span>',
-        'in_progress': '<span class="badge badge-in_progress">En cours</span>',
-        'resolved': '<span class="badge badge-resolved">Résolu</span>',
-        'cancelled': '<span class="badge badge-cancelled">Annulé</span>'
-    };
-    return statusMap[status] || `<span class="badge">${status}</span>`;
 }
 
 </script>

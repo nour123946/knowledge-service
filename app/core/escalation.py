@@ -13,6 +13,8 @@ Déclenche escalation si :
 + ⭐ Bloque la session après escalation
 """
 
+import re
+
 # =====================================================
 # 🧠 SESSION ESCALATION STATE (IN MEMORY)
 # =====================================================
@@ -49,6 +51,8 @@ FRUSTRATION_KEYWORDS = [
     "nul",
     "null",  # 🔥 AJOUTÉ
     "nulle",  # 🔥 AJOUTÉ
+    "j'en ai marre",
+    "marre",
     "mauvais",
     "mauvaise",
     "mauvaise réponse",
@@ -165,8 +169,23 @@ def detect_frustration(user_message: str) -> bool:
     """
     msg = user_message.lower()
     
-    # Méthode 1 : Mots-clés directs
-    has_keyword = any(word in msg for word in FRUSTRATION_KEYWORDS)
+    # Évite d'interpréter comme frustration des questions produit/information
+    if "?" in msg and not any(k in msg for k in ["nul", "marre", "marche pas", "stupide", "con", "merde", "faux", "incorrect"]):
+        return False
+
+    # Méthode 1 : Mots-clés directs (mot entier pour les termes courts)
+    has_keyword = False
+    for word in FRUSTRATION_KEYWORDS:
+        w = (word or "").strip().lower()
+        if not w:
+            continue
+        if len(w) <= 4 and " " not in w:
+            if re.search(rf"\b{re.escape(w)}\b", msg):
+                has_keyword = True
+                break
+        elif w in msg:
+            has_keyword = True
+            break
     
     # Méthode 2 : Patterns de sentiment négatif
     has_negative_sentiment = detect_negative_sentiment(user_message)
@@ -236,9 +255,9 @@ def should_escalate(
         print("��� ESCALATION → user wants human")
         return True
 
-    # 2️⃣ Frustration utilisateur (MAINTENANT DÉTECTÉ CORRECTEMENT)
-    if detect_frustration(user_message):
-        print("✅ ESCALATION → frustration detected")
+    # 2️⃣ Frustration utilisateur: escalader seulement si déjà au moins 1 low-conf avant
+    if detect_frustration(user_message) and previous_low_conf_count >= 1:
+        print("✅ ESCALATION → frustration + prior low confidence")
         return True
 
     # 3️⃣ IA incertaine
