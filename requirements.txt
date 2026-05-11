@@ -7,3 +7,4 @@ chromadb
 pypdf
 python-docx
 pymongo
+pillow

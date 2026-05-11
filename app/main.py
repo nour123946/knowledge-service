@@ -1,5 +1,5 @@
 # 📦 IMPORTS
-from fastapi import FastAPI, UploadFile, File, Security, HTTPException, status, Header
+from fastapi import FastAPI, UploadFile, File, Form, Security, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import APIKeyHeader
@@ -11,6 +11,11 @@ import requests
 import logging
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+from pathlib import Path
+import io
+import re
+
+from PIL import Image
 
 from app.core.conversation_logger import save_conversation
 from app.core.database import conversation_collection
@@ -32,7 +37,21 @@ from app.core.feedback import (
 from app.core.router import route_intent
 from app.core.sav_category_router import classify_sav_category
 from app.core.sav import detect_sav_category, build_sav_reply
+from app.core.customer_ops import (
+    build_customer_identifier,
+    parse_customer_identifier,
+    issue_customer_token,
+    validate_customer_token,
+    collect_customer_updates,
+    format_customer_update,
+    get_latest_order_snapshot,
+    get_latest_sav_snapshot,
+    normalize_sav_status,
+    normalize_order_status,
+    log_admin_action,
+)
 from app.utils.stop_intent import is_stop_intent
+from app.utils.product_parser import parse_business_data, get_product_by_name, get_available_products
 import uuid
 from app.routers import analytics
 
@@ -51,6 +70,165 @@ PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "MY_SUPER_ADMIN_TOKEN_123")
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_BUSINESS_V2_CANDIDATES = [
+    BASE_DIR / "data" / "data_businessv2.txt",
+    BASE_DIR / "data" / "business_data.txt",
+    BASE_DIR / "uploaded_docs" / "business_data.txt",
+]
+DATA_BUSINESS_V2 = next((path for path in DATA_BUSINESS_V2_CANDIDATES if path.exists()), DATA_BUSINESS_V2_CANDIDATES[0])
+DATA_IMAGES_DIR = BASE_DIR / "data" / "images"
+SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+
+
+def _parse_products_business_v2(file_path: Path = DATA_BUSINESS_V2) -> List[Dict[str, Any]]:
+    _ = file_path
+    products = parse_business_data(str(DATA_BUSINESS_V2))
+    normalized: List[Dict[str, Any]] = []
+    for product in products:
+        normalized.append({
+            "id": product.get("id"),
+            "name": product.get("name"),
+            "price": product.get("price_text") or product.get("price"),
+            "stock": product.get("stock_status") or ("In stock" if product.get("in_stock") else "Out of stock"),
+            "delivery": product.get("delivery_time"),
+            "image": product.get("image"),
+            "brand": product.get("brand"),
+            "tags": product.get("tags"),
+        })
+    return normalized
+
+
+def _catalog_products() -> List[Dict[str, Any]]:
+    return _parse_products_business_v2(DATA_BUSINESS_V2)
+
+
+def _catalog_product_names(only_available: bool = False) -> List[str]:
+    products = _catalog_products()
+    if only_available:
+        products = [p for p in products if (p.get("stock") or "").lower().startswith("in stock")]
+    return [p["name"] for p in products if p.get("name")]
+
+
+def _catalog_product_by_name(product_name: str) -> Optional[Dict[str, Any]]:
+    return get_product_by_name(product_name, _catalog_products())
+
+
+def _product_price_value(product: Optional[Dict[str, Any]]) -> float:
+    if not product:
+        return 0.0
+    price = product.get("price")
+    if isinstance(price, (int, float)):
+        return float(price)
+    match = re.search(r"(\d+(?:\.\d+)?)", str(price or ""))
+    return float(match.group(1)) if match else 0.0
+
+
+def _catalog_image_files(products: Optional[List[Dict[str, Any]]] = None) -> List[str]:
+    items = products if products is not None else _parse_products_business_v2(DATA_BUSINESS_V2)
+    return sorted({(p.get("image") or "").strip() for p in items if (p.get("image") or "").strip()})
+
+
+def _available_catalog_files() -> List[str]:
+    if not DATA_IMAGES_DIR.exists():
+        return []
+    return sorted(
+        p.name
+        for p in DATA_IMAGES_DIR.iterdir()
+        if p.is_file() and p.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+    )
+
+
+def _normalize_filename(value: str) -> str:
+    return (Path(value or "").name or "").strip().lower()
+
+
+def _exact_catalog_match(uploaded_filename: str, products: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    uploaded_norm = _normalize_filename(uploaded_filename)
+    if not uploaded_norm:
+        return None
+
+    available_files = {name.lower() for name in _available_catalog_files()}
+    if uploaded_norm not in available_files:
+        return None
+
+    for product in products:
+        if _normalize_filename(product.get("image") or "") == uploaded_norm:
+            return product
+    return None
+
+
+def _average_hash_from_bytes(raw: bytes, size: int = 8) -> Optional[List[int]]:
+    try:
+        image = Image.open(io.BytesIO(raw)).convert("L").resize((size, size))
+        pixels = list(image.getdata())
+        avg = sum(pixels) / len(pixels)
+        return [1 if p >= avg else 0 for p in pixels]
+    except Exception:
+        return None
+
+
+def _average_hash_from_path(path: Path, size: int = 8) -> Optional[List[int]]:
+    if not path.exists():
+        return None
+    try:
+        image = Image.open(path).convert("L").resize((size, size))
+        pixels = list(image.getdata())
+        avg = sum(pixels) / len(pixels)
+        return [1 if p >= avg else 0 for p in pixels]
+    except Exception:
+        return None
+
+
+def _hamming_distance(a: List[int], b: List[int]) -> int:
+    return sum(1 for x, y in zip(a, b) if x != y)
+
+
+def _recognize_product_from_image(raw: bytes) -> Optional[Dict[str, Any]]:
+    uploaded_hash = _average_hash_from_bytes(raw)
+    if not uploaded_hash:
+        return None
+
+    products = _parse_products_business_v2(DATA_BUSINESS_V2)
+    if not products:
+        return None
+
+    catalog_files = _catalog_image_files(products)
+    available_files = _available_catalog_files()
+    logger.info("📷 Catalog image filenames from catalog metadata: %s", catalog_files)
+    logger.info("📷 Catalog image filenames from disk: %s", available_files)
+
+    best_match: Optional[Dict[str, Any]] = None
+    best_distance = 10**9
+
+    for product in products:
+        ref_name = (product.get("image") or "").strip()
+        if not ref_name:
+            continue
+        ref_hash = _average_hash_from_path(DATA_IMAGES_DIR / ref_name)
+        if not ref_hash:
+            continue
+        dist = _hamming_distance(uploaded_hash, ref_hash)
+        if dist < best_distance:
+            best_distance = dist
+            best_match = product
+
+    if not best_match:
+        return None
+
+    # Threshold tuned for near-identical product image recognition
+    if best_distance > 8:
+        return None
+
+    return {
+        "name": best_match.get("name"),
+        "price": best_match.get("price"),
+        "stock": best_match.get("stock"),
+        "delivery": best_match.get("delivery"),
+        "image": best_match.get("image"),
+        "distance": best_distance,
+    }
+
 
 # 🔐 API KEY SECURITY
 api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
@@ -62,6 +240,301 @@ def verify_api_key(api_key: str = Security(api_key_header)):
             detail="Invalid or missing API Key"
         )
     return api_key
+
+
+def _serialize_datetime_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(payload or {})
+    for key, value in list(out.items()):
+        if isinstance(value, datetime):
+            out[key] = value.isoformat()
+    return out
+
+
+def _extract_channel_recipient(ticket: Dict[str, Any]) -> str:
+    customer_identifier = (ticket.get("customer_identifier") or "").strip()
+    if ":" in customer_identifier:
+        return customer_identifier.split(":", 1)[1]
+
+    session_id = (ticket.get("session_id") or "").strip()
+    if ticket.get("channel") == "facebook" and session_id.startswith("fb_"):
+        return session_id[3:]
+    return session_id
+
+
+def _deliver_admin_message(ticket: Dict[str, Any], content: str, admin_user: str) -> Dict[str, Any]:
+    from app.core.database import get_database
+
+    db = get_database()
+    channel = (ticket.get("channel") or "web").lower()
+    recipient = _extract_channel_recipient(ticket)
+    now = datetime.utcnow()
+
+    delivery_doc = {
+        "ticket_id": ticket.get("ticket_id"),
+        "order_id": ticket.get("order_id"),
+        "channel": channel,
+        "recipient": recipient,
+        "content": content,
+        "created_by": admin_user,
+        "attempts": 0,
+        "status": "pending",
+        "error": "",
+        "created_at": now,
+        "updated_at": now,
+    }
+    insert_res = db["delivery_events"].insert_one(delivery_doc)
+    delivery_id = str(insert_res.inserted_id)
+
+    status_value = "failed"
+    error_message = ""
+
+    if channel == "web":
+        status_value = "sent"
+    else:
+        for attempt in range(1, 4):
+            try:
+                if channel == "whatsapp":
+                    sent = send_whatsapp_message(recipient, content)
+                elif channel == "facebook":
+                    sent = send_facebook_message(recipient, content)
+                else:
+                    raise ValueError(f"Unsupported channel: {channel}")
+                if not sent:
+                    raise RuntimeError(f"{channel} delivery returned unsuccessful status")
+                status_value = "sent"
+                error_message = ""
+                db["delivery_events"].update_one(
+                    {"_id": insert_res.inserted_id},
+                    {
+                        "$set": {
+                            "attempts": attempt,
+                            "status": status_value,
+                            "error": "",
+                            "updated_at": datetime.utcnow(),
+                        }
+                    }
+                )
+                break
+            except Exception as err:
+                status_value = "failed"
+                error_message = str(err)
+                db["delivery_events"].update_one(
+                    {"_id": insert_res.inserted_id},
+                    {
+                        "$set": {
+                            "attempts": attempt,
+                            "status": status_value,
+                            "error": error_message,
+                            "updated_at": datetime.utcnow(),
+                        }
+                    }
+                )
+
+    if channel == "web":
+        db["delivery_events"].update_one(
+            {"_id": insert_res.inserted_id},
+            {
+                "$set": {
+                    "attempts": 1,
+                    "status": "sent",
+                    "updated_at": datetime.utcnow(),
+                }
+            }
+        )
+
+    return {
+        "delivery_id": delivery_id,
+        "status": status_value,
+        "channel": channel,
+        "attempts": 1 if channel == "web" else db["delivery_events"].find_one({"_id": insert_res.inserted_id}, {"attempts": 1}).get("attempts", 0),
+        "error": error_message,
+    }
+
+
+def _append_sav_thread_if_ticket_exists(session_id: str, channel: str, user_text: str, assistant_text: str) -> None:
+    try:
+        from app.core.sav_tickets import get_latest_active_ticket, add_sav_ticket_message_with_meta
+
+        ticket = get_latest_active_ticket(session_id=session_id, channel=channel)
+        if not ticket:
+            return
+
+        add_sav_ticket_message_with_meta(ticket["ticket_id"], "user", user_text, author="customer")
+        add_sav_ticket_message_with_meta(ticket["ticket_id"], "assistant", assistant_text, author="assistant")
+    except Exception:
+        logger.debug("Could not append SAV thread entry", exc_info=True)
+
+
+def _deliver_customer_notification(
+    *,
+    customer_identifier: str,
+    channel: str,
+    content: str,
+    resource_type: str,
+    resource_id: str,
+    admin_user: str,
+    session_id: str = "",
+) -> Dict[str, Any]:
+    from app.core.database import get_database
+
+    db = get_database()
+    channel_norm = (channel or "web").lower()
+    recipient = _extract_channel_recipient({
+        "customer_identifier": customer_identifier,
+        "session_id": session_id,
+        "channel": channel_norm,
+    })
+    now = datetime.utcnow()
+
+    delivery_doc = {
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "customer_identifier": customer_identifier,
+        "channel": channel_norm,
+        "recipient": recipient,
+        "content": content,
+        "created_by": admin_user,
+        "attempts": 0,
+        "status": "pending",
+        "error": "",
+        "created_at": now,
+        "updated_at": now,
+    }
+    insert_res = db["delivery_events"].insert_one(delivery_doc)
+
+    status_value = "failed"
+    error_message = ""
+    attempts = 1
+
+    if channel_norm == "web":
+        status_value = "sent"
+        db["delivery_events"].update_one(
+            {"_id": insert_res.inserted_id},
+            {
+                "$set": {
+                    "attempts": attempts,
+                    "status": status_value,
+                    "error": "",
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+    else:
+        for attempt in range(1, 4):
+            attempts = attempt
+            try:
+                if channel_norm == "whatsapp":
+                    sent = send_whatsapp_message(recipient, content)
+                elif channel_norm == "facebook":
+                    sent = send_facebook_message(recipient, content)
+                else:
+                    raise ValueError(f"Unsupported channel: {channel_norm}")
+
+                if not sent:
+                    raise RuntimeError(f"{channel_norm} delivery returned unsuccessful status")
+
+                status_value = "sent"
+                error_message = ""
+                db["delivery_events"].update_one(
+                    {"_id": insert_res.inserted_id},
+                    {
+                        "$set": {
+                            "attempts": attempt,
+                            "status": status_value,
+                            "error": "",
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
+                )
+                break
+            except Exception as err:
+                status_value = "failed"
+                error_message = str(err)
+                db["delivery_events"].update_one(
+                    {"_id": insert_res.inserted_id},
+                    {
+                        "$set": {
+                            "attempts": attempt,
+                            "status": status_value,
+                            "error": error_message,
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
+                )
+
+    return {
+        "delivery_id": str(insert_res.inserted_id),
+        "status": status_value,
+        "channel": channel_norm,
+        "recipient": recipient,
+        "attempts": attempts,
+        "error": error_message,
+    }
+
+
+def _notify_order_customer(order: Dict[str, Any], admin_user: str, reason: str = "") -> Optional[Dict[str, Any]]:
+    if not order:
+        return None
+
+    meaningful_statuses = {"confirmed", "shipped", "delivered", "cancelled", "canceled"}
+
+    customer_identifier = order.get("customer_identifier") or build_customer_identifier(order.get("channel", "web"), order.get("session_id", ""))
+    latest_item = (order.get("status_history") or [])[-1] if order.get("status_history") else {}
+    latest_status = (latest_item.get("status") or order.get("status") or "").strip().lower()
+    if latest_status not in meaningful_statuses:
+        return None
+
+    update_payload = {
+        "kind": "order_status",
+        "order_id": order.get("order_id"),
+        "status": latest_status,
+        "status_label": "",
+        "tracking_number": order.get("tracking_number"),
+        "timestamp": latest_item.get("changed_at") or order.get("updated_at") or order.get("created_at"),
+        "support_message": latest_item.get("note") or reason or "Mise à jour de commande",
+    }
+    content = format_customer_update(update_payload)
+    return _deliver_customer_notification(
+        customer_identifier=customer_identifier,
+        channel=order.get("channel", "web"),
+        content=content,
+        resource_type="order",
+        resource_id=order.get("order_id", ""),
+        admin_user=admin_user,
+        session_id=order.get("session_id", ""),
+    )
+
+
+def _notify_sav_customer(ticket: Dict[str, Any], admin_user: str, event_kind: str = "sav_status", admin_message: str = "") -> Optional[Dict[str, Any]]:
+    if not ticket:
+        return None
+
+    meaningful_statuses = {"open", "in_progress", "resolved", "waiting_customer", "cancelled", "canceled"}
+
+    customer_identifier = ticket.get("customer_identifier") or build_customer_identifier(ticket.get("channel", "web"), ticket.get("session_id", ""))
+    latest_item = (ticket.get("status_history") or [])[-1] if ticket.get("status_history") else {}
+    latest_status = (latest_item.get("status") or ticket.get("status") or "").strip().lower()
+    if event_kind == "sav_status" and latest_status not in meaningful_statuses:
+        return None
+
+    update_payload = {
+        "kind": event_kind,
+        "ticket_id": ticket.get("ticket_id"),
+        "status": latest_status,
+        "status_label": "",
+        "timestamp": latest_item.get("changed_at") or ticket.get("updated_at") or ticket.get("created_at"),
+        "support_message": admin_message or latest_item.get("reason") or ticket.get("summary") or "Mise à jour SAV",
+    }
+    content = format_customer_update(update_payload)
+    return _deliver_customer_notification(
+        customer_identifier=customer_identifier,
+        channel=ticket.get("channel", "web"),
+        content=content,
+        resource_type="sav_ticket",
+        resource_id=ticket.get("ticket_id", ""),
+        admin_user=admin_user,
+        session_id=ticket.get("session_id", ""),
+    )
 
 # 🚀 FASTAPI INIT
 app = FastAPI(title="Knowledge Service AI")
@@ -104,6 +577,107 @@ async def upload_document(
         "filename": file.filename,
         "status": "uploaded and indexed",
         "chunks_indexed": result.get("chunks_indexed", 0)
+    }
+
+
+@app.post("/customer/upload-image")
+async def customer_upload_image(
+    file: UploadFile = File(...),
+    session_id: Optional[str] = Form(None),
+    channel: Optional[str] = Form("web"),
+):
+    from app.core.memory import add_message, add_product_candidate, set_current_product
+
+    filename = (file.filename or "").lower()
+    ext = Path(filename).suffix
+    logger.info("📷 Uploaded image filename: %s", file.filename or "")
+    if ext not in SUPPORTED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only jpg/png files are allowed")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    products = _parse_products_business_v2(DATA_BUSINESS_V2)
+    if not products:
+        raise HTTPException(status_code=500, detail="Product catalog unavailable")
+
+    catalog_files = _catalog_image_files(products)
+    logger.info("📷 Loaded catalog files: %s", catalog_files)
+    logger.info("📷 Loaded catalog files from disk: %s", _available_catalog_files())
+
+    exact_match = _exact_catalog_match(file.filename or "", products)
+    if exact_match:
+        logger.info("📷 Exact filename match found for %s -> %s", file.filename or "", exact_match.get("name"))
+        recognition_message = (
+            f"📸 Product recognized: {exact_match.get('name')}\n"
+            f"💰 Price: {exact_match.get('price')}\n"
+            f"📦 Stock: {exact_match.get('stock')}\n"
+            f"🚚 Delivery: {exact_match.get('delivery')}"
+        )
+        add_message(session_id or "", "user", f"📷 Uploaded image: {file.filename or ''}")
+        add_message(session_id or "", "assistant", recognition_message)
+        set_current_product(session_id or "", exact_match.get("name"))
+        add_product_candidate(session_id or "", exact_match.get("name"), source="image_filename", confidence=0.99)
+        return {
+            "matched": True,
+            "product": {
+                "name": exact_match.get("name"),
+                "price": exact_match.get("price"),
+                "stock": exact_match.get("stock"),
+                "delivery": exact_match.get("delivery"),
+            },
+            "message": recognition_message,
+            "session_id": session_id or "",
+            "channel": channel or "web",
+            "uploaded_filename": file.filename or "",
+            "match_score": 0,
+            "match_source": "filename",
+            "current_product": exact_match.get("name"),
+        }
+
+    match = _recognize_product_from_image(raw)
+    if not match:
+        return {
+            "matched": False,
+            "message": "No matching product found in catalog images.",
+            "session_id": session_id or "",
+            "channel": channel or "web",
+        }
+
+    logger.info(
+        "📷 Chosen match score for %s -> %s (distance=%s)",
+        file.filename or "",
+        match.get("name"),
+        match.get("distance"),
+    )
+
+    recognition_message = (
+        f"📸 Product recognized: {match.get('name')}\n"
+        f"💰 Price: {match.get('price')}\n"
+        f"📦 Stock: {match.get('stock')}\n"
+        f"🚚 Delivery: {match.get('delivery')}"
+    )
+    add_message(session_id or "", "user", f"📷 Uploaded image: {file.filename or ''}")
+    add_message(session_id or "", "assistant", recognition_message)
+    set_current_product(session_id or "", match.get("name"))
+    add_product_candidate(session_id or "", match.get("name"), source="image_hash", confidence=0.95)
+
+    return {
+        "matched": True,
+        "product": {
+            "name": match.get("name"),
+            "price": match.get("price"),
+            "stock": match.get("stock"),
+            "delivery": match.get("delivery"),
+        },
+        "message": recognition_message,
+        "session_id": session_id or "",
+        "channel": channel or "web",
+        "uploaded_filename": file.filename or "",
+        "match_score": match.get("distance"),
+        "match_source": "hash",
+        "current_product": match.get("name"),
     }
 
 
@@ -152,11 +726,36 @@ class AskRequest(BaseModel):
 
 def is_order_status_question(query: str) -> bool:
     q = (query or "").lower()
+    sav_exclusions = [
+        "sav", "ticket", "échange", "echange", "retour", "remboursement", "réclamation", "reclamation"
+    ]
+    if any(marker in q for marker in sav_exclusions):
+        return False
     markers = [
         "statut", "status", "où en est", "ou en est", "suivre", "suivi", "tracking",
         "expédiée", "expediee", "expédié", "expedie", "livrée", "livree", "annulée", "annulee",
         "pas encore reçu", "pas encore recu", "pas reçu", "pas recu", "pas encore arrivée", "pas encore arrivee",
         "où est ma commande", "ou est ma commande", "où est mon colis", "ou est mon colis"
+    ]
+    return any(m in q for m in markers)
+
+
+def is_sav_status_question(query: str) -> bool:
+    q = (query or "").lower()
+    eta_markers = [
+        "délai de livraison", "delai de livraison", "combien de temps la livraison",
+        "combien de temps pour la livraison", "dans combien de temps la livraison",
+        "eta livraison", "estimated delivery"
+    ]
+    if any(m in q for m in eta_markers):
+        return False
+
+    markers = [
+        "mon sav", "ticket sav", "mon ticket", "mon échange", "mon echange", "mon retour",
+        "où en est mon sav", "ou en est mon sav", "où en est mon ticket", "ou en est mon ticket",
+        "status sav", "statut sav", "statut du sav", "statut du ticket", "statut échange", "statut echange",
+        "suivi de mon sav", "suivi sav", "suivi du ticket", "mise à jour sav", "mise a jour sav",
+        "dernière réponse sav", "derniere reponse sav", "message du sav", "dernier message",
     ]
     return any(m in q for m in markers)
 
@@ -215,29 +814,34 @@ def resolve_product_for_order(query: str, session_id: str) -> Dict[str, Any]:
         }
     """
     from app.core.memory import get_product_context
-    
-    # Available products in catalog (full names)
-    PRODUCTS_CATALOG = {
-        "puma": "Puma RS-X",
-        "adidas": "Adidas Ultraboost",
-        "converse": "Converse Chuck Taylor",
-        "new balance": "New Balance 574",
-        # Also match full names
-        "puma rs-x": "Puma RS-X",
-        "adidas ultraboost": "Adidas Ultraboost",
-        "converse chuck taylor": "Converse Chuck Taylor",
-        "new balance 574": "New Balance 574",
-    }
-    
+
+    products = _catalog_products()
+    available_products = get_available_products(products)
     q_lower = (query or "").lower().strip()
     
     # Rule 1: Query explicitly mentions a product (unique)
     explicit_matches = []
-    for keyword, product_name in PRODUCTS_CATALOG.items():
-        if keyword in q_lower:
-            # Avoid duplicates (rs-x matches puma)
-            if product_name not in [m[1] for m in explicit_matches]:
-                explicit_matches.append((keyword, product_name))
+    for product in products:
+        product_name = (product.get("name") or "").strip()
+        brand = (product.get("brand") or "").strip().lower()
+        tags = (product.get("tags") or "").strip().lower()
+        name_lower = product_name.lower()
+        if not product_name:
+            continue
+
+        matched = False
+        if name_lower and name_lower in q_lower:
+            matched = True
+        elif brand and brand in q_lower:
+            matched = True
+        else:
+            for token in [t for t in re.split(r"[\s,;/|]+", tags) if len(t) > 2]:
+                if token in q_lower:
+                    matched = True
+                    break
+
+        if matched and product_name not in [m[1] for m in explicit_matches]:
+            explicit_matches.append((name_lower or product_name, product_name))
     
     if len(explicit_matches) == 1:
         logger.info(f"✅ PRODUCT RESOLVE: direct (explicit) -> {explicit_matches[0][1]}")
@@ -260,7 +864,7 @@ def resolve_product_for_order(query: str, session_id: str) -> Dict[str, Any]:
     # Rule 2: Check product_context
     ctx = get_product_context(session_id)
     candidates = ctx.get("candidates", [])
-    selected = ctx.get("selected_product")
+    selected = ctx.get("current_product") or ctx.get("selected_product")
     
     # If user explicitly selected before (and still fresh)
     if selected:
@@ -298,8 +902,10 @@ def resolve_product_for_order(query: str, session_id: str) -> Dict[str, Any]:
     
     # Rule 5: No candidates -> ask
     logger.info(f"✅ PRODUCT RESOLVE: ask (no context)")
+    options = [p.get("name") for p in available_products if p.get("name")]
     return {
         "status": "ask",
+        "options": options,
         "confidence": 0.0
     }
 
@@ -310,17 +916,8 @@ def track_product_mention(query: str, response: str, session_id: str, intent: st
     Updates product_context for future implicit orders.
     """
     from app.core.memory import add_product_candidate
-    
-    PRODUCTS_CATALOG = [
-        ("puma rs-x", "Puma RS-X"),
-        ("puma", "Puma RS-X"),
-        ("adidas ultraboost", "Adidas Ultraboost"),
-        ("adidas", "Adidas Ultraboost"),
-        ("converse chuck taylor", "Converse Chuck Taylor"),
-        ("converse", "Converse Chuck Taylor"),
-        ("new balance 574", "New Balance 574"),
-        ("new balance", "New Balance 574"),
-    ]
+
+    products = _catalog_products()
     
     q_lower = (query or "").lower()
     r_lower = (response or "").lower()
@@ -330,19 +927,34 @@ def track_product_mention(query: str, response: str, session_id: str, intent: st
     is_product_query = any(m in q_lower for m in product_markers)
     
     # Track products mentioned in query
-    for keyword, product_name in PRODUCTS_CATALOG:
-        if keyword in q_lower:
-            # If asking about product -> high confidence
-            if is_product_query:
-                add_product_candidate(session_id, product_name, source="query", confidence=0.85)
-            else:
-                add_product_candidate(session_id, product_name, source="query", confidence=0.75)
+    for product in products:
+        product_name = (product.get("name") or "").strip()
+        if not product_name:
+            continue
+        keywords = [
+            product_name.lower(),
+            (product.get("brand") or "").strip().lower(),
+        ]
+        tags = (product.get("tags") or "").strip().lower()
+        keywords.extend([token for token in re.split(r"[\s,;/|]+", tags) if len(token) > 2])
+
+        if any(keyword and keyword in q_lower for keyword in keywords):
+            confidence = 0.85 if is_product_query else 0.75
+            add_product_candidate(session_id, product_name, source="query", confidence=confidence)
     
     # Track products mentioned in response (if it's a product description)
     if is_product_query or intent == "info":
-        for keyword, product_name in PRODUCTS_CATALOG:
-            if keyword in r_lower:
-                # Mentioned in bot response to product query -> high confidence
+        for product in products:
+            product_name = (product.get("name") or "").strip()
+            if not product_name:
+                continue
+            keywords = [
+                product_name.lower(),
+                (product.get("brand") or "").strip().lower(),
+            ]
+            tags = (product.get("tags") or "").strip().lower()
+            keywords.extend([token for token in re.split(r"[\s,;/|]+", tags) if len(token) > 2])
+            if any(keyword and keyword in r_lower for keyword in keywords):
                 add_product_candidate(session_id, product_name, source="response", confidence=0.88)
 
 @app.post("/ask")
@@ -485,8 +1097,10 @@ def ask(request: AskRequest):
             status_label = normalize_order_status_for_user(status_raw)
             created_at = last_order.get("created_at")
             created_at_fmt = format_order_datetime(created_at)
+            updated_at_fmt = format_order_datetime(last_order.get("updated_at"))
             items = last_order.get("items") or []
             product = items[0].get("product_name") if items and isinstance(items[0], dict) else None
+            tracking_number = last_order.get("tracking_number")
 
             q_lower = (query or "").lower()
             asked_delivered = any(x in q_lower for x in ["livrée", "livree"])
@@ -508,6 +1122,8 @@ def ask(request: AskRequest):
                     details.append(f"Produit: **{product}**")
                 if created_at_fmt:
                     details.append(f"Date: **{created_at_fmt}**")
+                if tracking_number:
+                    details.append(f"Tracking: **{tracking_number}**")
                 details_text = ("\n" + " | ".join(details)) if details else ""
                 answer = f"Le statut de votre commande **{order_id}** est: **{status_label}**.{details_text}"
 
@@ -519,7 +1135,11 @@ def ask(request: AskRequest):
             if status_explanation:
                 answer += f"\n{status_explanation}"
 
-            answer += "\nSouhaitez-vous connaître le délai de livraison estimé ? Si vous avez un numéro de tracking, envoyez-le."
+            if tracking_number:
+                answer += f"\nNuméro de tracking : **{tracking_number}**"
+            if updated_at_fmt:
+                answer += f"\nDernière mise à jour : **{updated_at_fmt}**"
+            answer += "\nSouhaitez-vous connaître le délai de livraison estimé ?"
 
             add_message(session_id, "user", query)
             add_message(session_id, "assistant", answer)
@@ -540,6 +1160,58 @@ def ask(request: AskRequest):
                 "route": "sav",
                 "confidence": 0.93,
                 "confidence_score": 0.93,
+                "should_escalate": False,
+                "needs_human_agent": False,
+                "escalation_reason": None,
+                "session_id": session_id,
+                "conversation_state": "idle",
+                "is_order_flow": False,
+                "retrieved_chunks": 0
+            }
+
+    # ✅ FAST-PATH statut SAV depuis DB
+    if is_sav_status_question(query) and not is_in_choice_flow:
+        from app.core.database import get_database
+
+        db = get_database()
+        customer_identifier = build_customer_identifier(channel, session_id)
+        latest_ticket = db["sav_tickets"].find_one({"customer_identifier": customer_identifier}, sort=[("updated_at", -1)])
+
+        if latest_ticket:
+            ticket_id = latest_ticket.get("ticket_id", "N/A")
+            status_label = normalize_sav_status(latest_ticket.get("status", "open"))
+            last_admin_message = ""
+            for msg in reversed(latest_ticket.get("messages_thread") or []):
+                if (msg.get("role") or "").lower() in {"admin", "assistant", "bot"}:
+                    last_admin_message = msg.get("content") or ""
+                    break
+
+            last_updated = format_order_datetime(latest_ticket.get("updated_at"))
+            answer = f"Le statut de votre SAV **{ticket_id}** est: **{status_label}**."
+            if last_admin_message:
+                answer += f"\nDernier message admin : {last_admin_message}"
+            if last_updated:
+                answer += f"\nMis à jour le {last_updated}"
+
+            add_message(session_id, "user", query)
+            add_message(session_id, "assistant", answer)
+            save_conversation(
+                session_id=session_id,
+                channel=channel,
+                user_message=query,
+                ai_response=answer,
+                confidence=0.92,
+                escalated=False
+            )
+
+            return {
+                "message_id": str(uuid.uuid4()),
+                "answer": answer,
+                "final_answer": answer,
+                "intent": "sav_status",
+                "route": "sav",
+                "confidence": 0.92,
+                "confidence_score": 0.92,
                 "should_escalate": False,
                 "needs_human_agent": False,
                 "escalation_reason": None,
@@ -825,6 +1497,7 @@ def ask(request: AskRequest):
             add_message(session_id, "user", query)
             add_message(session_id, "assistant", sav_answer)
             save_conversation(session_id=session_id, channel=channel, user_message=query, ai_response=sav_answer, confidence=0.85, escalated=False)
+            _append_sav_thread_if_ticket_exists(session_id=session_id, channel=channel, user_text=query, assistant_text=sav_answer)
             next_state = "idle" if _should_close_sav_flow(sav_answer) else f"sav_{cat}"
             return {
                 "message_id": str(uuid.uuid4()),
@@ -1070,6 +1743,7 @@ def ask(request: AskRequest):
                 confidence=max(0.75, route_confidence),
                 escalated=False
             )
+            _append_sav_thread_if_ticket_exists(session_id=session_id, channel=channel, user_text=query, assistant_text=sav_answer)
 
             next_state = "idle" if _should_close_sav_flow(sav_answer) else f"sav_{sav_category}"
             return {
@@ -1141,72 +1815,32 @@ def ask(request: AskRequest):
             "is_order_flow": False,
             "retrieved_chunks": len(results) if results else 0
         }
-    #  ÉTAPE 4 : DÉTECTION INTELLIGENTE DU WORKFLOW DE COMMANDE
-
-    # 2️⃣ Mots-clés explicites de commande
+    # 🔥 ÉTAPE 4 : GESTION DES WORKFLOWS EXISTANTS OU DEMANDES EXPLICITES
+    # ✅ Mots-clés EXPLICITES de commande seulement (pas de heuristiques de produits)
     explicit_order_keywords = [
-        "commander", "acheter", "prendre", "je veux", "je voudrais",
-        "donnez-moi", "j'aimerais", "panier", "finaliser", "valider",
-        "je prends", "ok je prends", "d'accord", "parfait"
+        "commander", "acheter", "panier", "finaliser", "valider",
+        "je veux commander", "je voudrais commander", "je souhaite commander"
     ]
-    has_explicit_order_keyword = any(word in query.lower() for word in explicit_order_keywords)
-
-    # 3️⃣ Noms de produits disponibles (détection intelligente)
-    available_products = [
-        "puma", "adidas", "converse", "new balance",
-        "ultraboost", "chuck taylor", "rs-x", "574"
-    ]
-    mentions_product = any(product in query.lower() for product in available_products)
-
-    # 4️⃣ Mots d'intérêt pour un produit
-    interest_keywords = [
-        "m'intéresse", "intéressant", "je suis intéressé",
-        "ça me plaît", "je veux", "je voudrais"
-    ]
-    shows_interest = any(word in query.lower() for word in interest_keywords)
-
-    # 5️⃣ Confirmations courtes (après une proposition)
-    short_confirmations = ["oui", "ok", "d'accord", "parfait", "ouais", "yes", "go"]
-    is_confirmation = query.lower().strip() in short_confirmations
-
-    # 6️⃣ Récupérer le dernier message du bot pour contexte
-    history = get_history(session_id, last_n=2)
-    last_bot_message = ""
-    if history:
-        for msg in reversed(history):
-            if msg.get("role") == "assistant":
-                last_bot_message = (msg.get("content") or "").lower()
-                break
-
-    # Le bot a-t-il proposé un produit dans son dernier message ?
-    bot_proposed_product = any(product in last_bot_message for product in available_products)
-   
+    has_explicit_order_keyword = any(keyword in q for keyword in explicit_order_keywords)
+    
     has_sav_words = any(w in q for w in ["sav", "retour", "retourner", "échange", "echanger", "échanger", "remboursement", "rembourser", "annuler", "réclamation", "reclamation", "plainte"])
-    # 🔥 DÉCISION INTELLIGENTE : Lancer le workflow si...
+    
+    # ✅ Only start workflow for explicit order keywords, not product mentions alone
     should_start_workflow = (
         (not is_in_sav_flow) and
         (not is_in_choice_flow) and
-        (not has_sav_words) and (
-            is_in_order_workflow or
-            has_explicit_order_keyword or
-            (mentions_product and shows_interest) or
-            (is_confirmation and bot_proposed_product) or
-            (mentions_product and not any(w in q for w in ["prix", "coût", "cout", "combien", "disponible"]))
-        )
+        (not has_sav_words) and
+        (is_in_order_workflow or has_explicit_order_keyword)
     )
 
     logger.info(f"""
-🔍 WORKFLOW DETECTION:
+🔍 WORKFLOW DECISION (explicit keywords only):
 - is_in_order_workflow: {is_in_order_workflow}
 - has_explicit_order_keyword: {has_explicit_order_keyword}
-- mentions_product: {mentions_product}
-- shows_interest: {shows_interest}
-- is_confirmation: {is_confirmation}
-- bot_proposed_product: {bot_proposed_product}
 → DECISION: {should_start_workflow}
 """)
 
-    # 🔥 SI WORKFLOW DÉTECTÉ → LANCER ET RETURN (prioritaire sur SAV)
+    # 🔥 SI WORKFLOW EXPLICITE DÉTECTÉ → LANCER
     if should_start_workflow:
         try:
             from app.workflows.order_workflow import OrderWorkflow
@@ -1354,6 +1988,7 @@ def ask(request: AskRequest):
             confidence=0.8,
             escalated=False
         )
+        _append_sav_thread_if_ticket_exists(session_id=session_id, channel=channel, user_text=query, assistant_text=sav_answer)
         sav_done = _should_close_sav_flow(sav_answer)
         next_state = "idle" if sav_done else f"sav_{sav_category}"
         return {
@@ -1468,7 +2103,7 @@ def send_whatsapp_message(to: str, text: str, use_buttons: bool = False):
     
     if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
         logger.warning("⚠️ WhatsApp credentials not configured")
-        return
+        return False
     
     url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
     headers = {
@@ -1511,8 +2146,10 @@ def send_whatsapp_message(to: str, text: str, use_buttons: bool = False):
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         logger.info(f"✅ WhatsApp message sent to {to}")
+        return True
     except Exception as e:
         logger.error(f"❌ Failed to send WhatsApp message: {e}")
+        return False
 
 
 @app.get("/webhook/whatsapp")
@@ -1714,7 +2351,7 @@ def send_facebook_message(recipient_id: str, text: str, quick_replies: list = No
     
     if not FACEBOOK_PAGE_TOKEN:
         logger.warning("⚠️ Facebook page token not configured")
-        return
+        return False
     
     url = "https://graph.facebook.com/v19.0/me/messages"
     headers = {"Content-Type": "application/json"}
@@ -1734,8 +2371,10 @@ def send_facebook_message(recipient_id: str, text: str, quick_replies: list = No
         response = requests.post(url, headers=headers, params=params, json=data)
         response.raise_for_status()
         logger.info(f"✅ Facebook message sent to {recipient_id}")
+        return True
     except Exception as e:
         logger.error(f"❌ Failed to send Facebook message: {e}")
+        return False
 
 
 # =====================================================
@@ -1846,6 +2485,315 @@ def webhook_status():
     }
 
 
+class CustomerAccessRequest(BaseModel):
+    channel: Optional[str] = None
+    customer_id: Optional[str] = None
+    order_id: Optional[str] = None
+    phone_last4: Optional[str] = None
+
+
+@app.post("/customer/access-token")
+def issue_customer_access_token(payload: CustomerAccessRequest):
+    from app.core.database import get_database
+
+    db = get_database()
+    customer_identifier = None
+    resolved_order_id = payload.order_id
+
+    if payload.order_id:
+        order = db["orders"].find_one({"order_id": payload.order_id})
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        phone = "".join(ch for ch in str(order.get("customer", {}).get("phone", "")) if ch.isdigit())
+        provided_last4 = "".join(ch for ch in str(payload.phone_last4 or "") if ch.isdigit())
+        if len(provided_last4) < 4 or not phone.endswith(provided_last4[-4:]):
+            raise HTTPException(status_code=401, detail="Verification failed")
+
+        customer_identifier = order.get("customer_identifier") or build_customer_identifier(
+            order.get("channel", "web"),
+            order.get("session_id", ""),
+        )
+    else:
+        if not payload.channel or not payload.customer_id:
+            raise HTTPException(status_code=400, detail="Provide either order_id+phone_last4 or channel+customer_id")
+
+        customer_identifier = parse_customer_identifier(payload.channel, payload.customer_id)
+        known_orders = db["orders"].count_documents({"customer_identifier": customer_identifier})
+        known_tickets = db["sav_tickets"].count_documents({"customer_identifier": customer_identifier})
+        if (known_orders + known_tickets) == 0:
+            raise HTTPException(status_code=404, detail="No customer updates found for this identifier")
+
+    token = issue_customer_token(
+        {
+            "scope": "customer_updates:read",
+            "customer_identifier": customer_identifier,
+            "order_id": resolved_order_id,
+        },
+        ttl_minutes=60,
+    )
+
+    return {
+        "token": token,
+        "expires_in_minutes": 60,
+        "customer_identifier": customer_identifier,
+        "order_id": resolved_order_id,
+    }
+
+
+@app.get("/customer/order-status")
+def customer_order_status(
+    order_id: Optional[str] = None,
+    x_customer_token: str = Header(None)
+):
+    if not x_customer_token:
+        raise HTTPException(status_code=401, detail="Missing customer token")
+
+    try:
+        token_data = validate_customer_token(x_customer_token)
+    except ValueError as err:
+        raise HTTPException(status_code=401, detail=str(err))
+
+    if token_data.get("scope") != "customer_updates:read":
+        raise HTTPException(status_code=403, detail="Invalid token scope")
+
+    token_order = token_data.get("order_id")
+    if token_order and order_id and token_order != order_id:
+        raise HTTPException(status_code=403, detail="Token is restricted to another order")
+
+    order = get_latest_order_snapshot(token_data.get("customer_identifier"), order_id=order_id or token_order)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    history = order.get("status_history") or []
+    latest_status = history[-1] if history else {}
+    tracking_number = order.get("tracking_number") or latest_status.get("tracking_number")
+    public_message = format_customer_update({
+        "kind": "order_status",
+        "status": order.get("status"),
+    })
+    response = {
+        "status": normalize_order_status(order.get("status", "pending")),
+        "tracking_number": tracking_number,
+        "last_updated_at": _serialize_datetime_fields({"ts": order.get("updated_at")}).get("ts"),
+        "latest_message": public_message,
+        "message": public_message,
+    }
+    return _serialize_datetime_fields(response)
+
+
+@app.get("/customer/sav-status")
+def customer_sav_status(
+    ticket_id: Optional[str] = None,
+    order_id: Optional[str] = None,
+    x_customer_token: str = Header(None)
+):
+    if not x_customer_token:
+        raise HTTPException(status_code=401, detail="Missing customer token")
+
+    try:
+        token_data = validate_customer_token(x_customer_token)
+    except ValueError as err:
+        raise HTTPException(status_code=401, detail=str(err))
+
+    if token_data.get("scope") != "customer_updates:read":
+        raise HTTPException(status_code=403, detail="Invalid token scope")
+
+    token_order = token_data.get("order_id")
+    if token_order and order_id and token_order != order_id:
+        raise HTTPException(status_code=403, detail="Token is restricted to another order")
+
+    ticket = None
+    if ticket_id:
+        ticket = get_latest_sav_snapshot(token_data.get("customer_identifier"), order_id=order_id or token_order)
+        if ticket and ticket.get("ticket_id") != ticket_id:
+            ticket = None
+    else:
+        ticket = get_latest_sav_snapshot(token_data.get("customer_identifier"), order_id=order_id or token_order)
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="SAV ticket not found")
+
+    history = ticket.get("status_history") or []
+    latest_status = history[-1] if history else {}
+    public_message = format_customer_update({
+        "kind": "sav_status",
+        "status": ticket.get("status"),
+    })
+
+    response = {
+        "status": normalize_sav_status(ticket.get("status", "open")),
+        "last_updated_at": _serialize_datetime_fields({"ts": ticket.get("updated_at")}).get("ts"),
+        "latest_admin_message": format_customer_update({"kind": "sav_message"}),
+        "message": public_message,
+    }
+    return _serialize_datetime_fields(response)
+
+
+@app.get("/customer/updates")
+def get_customer_updates(
+    order_id: Optional[str] = None,
+    since: Optional[str] = None,
+    cursor: Optional[str] = None,
+    session_id: Optional[str] = None,
+    channel: Optional[str] = "web",
+    x_customer_token: str = Header(None),
+    x_customer_session: Optional[str] = Header(None),
+):
+    token_data: Optional[Dict[str, Any]] = None
+    customer_identifier = ""
+
+    if x_customer_token:
+        try:
+            token_data = validate_customer_token(x_customer_token)
+        except ValueError as err:
+            raise HTTPException(status_code=401, detail=str(err))
+
+        if token_data.get("scope") != "customer_updates:read":
+            raise HTTPException(status_code=403, detail="Invalid token scope")
+
+        customer_identifier = token_data.get("customer_identifier") or ""
+    else:
+        resolved_session = (session_id or x_customer_session or "").strip()
+        channel_norm = (channel or "web").strip().lower()
+        if not resolved_session:
+            raise HTTPException(status_code=401, detail="Missing customer token or session context")
+        customer_identifier = build_customer_identifier(channel_norm, resolved_session)
+
+    token_order = (token_data or {}).get("order_id")
+    if token_order and order_id and token_order != order_id:
+        raise HTTPException(status_code=403, detail="Token is restricted to another order")
+
+    data = collect_customer_updates(
+        customer_identifier=customer_identifier,
+        order_id=order_id or token_order,
+        since=since or cursor,
+        include_internal=False,
+    )
+
+    latest_order = get_latest_order_snapshot(customer_identifier, order_id=order_id or token_order)
+    latest_ticket = get_latest_sav_snapshot(customer_identifier, order_id=order_id or token_order)
+
+    latest_order_message = ""
+    latest_ticket_message = ""
+    if latest_order:
+        latest_order_message = format_customer_update({
+            "kind": "order_status",
+            "status": latest_order.get("status"),
+        })
+    if latest_ticket:
+        latest_ticket_message = format_customer_update({
+            "kind": "sav_status",
+            "status": latest_ticket.get("status"),
+        })
+
+    timeline_updates: List[Dict[str, Any]] = []
+    for update in data.get("updates", []):
+        kind = (update.get("kind") or "").strip().lower()
+        created_at = update.get("timestamp")
+
+        if kind == "order_status":
+            timeline_updates.append({
+                "id": update.get("dedupe_key") or f"order:{update.get('order_id')}:{created_at}",
+                "type": "order",
+                "order_id": update.get("order_id"),
+                "status": (update.get("status") or "").strip().lower(),
+                "message": update.get("message") or "Your order has been updated.",
+                "created_at": created_at,
+                "kind": kind,
+                "message_type": update.get("message_type") or "system_update",
+            })
+            continue
+
+        if kind == "sav_status":
+            sav_status = (update.get("status") or "").strip().lower()
+            if sav_status in {"canceled", "cancelled"}:
+                sav_status = "closed"
+            timeline_updates.append({
+                "id": update.get("dedupe_key") or f"sav:{update.get('ticket_id')}:{created_at}",
+                "type": "sav",
+                "ticket_id": update.get("ticket_id"),
+                "status": sav_status,
+                "message": update.get("message") or "Your SAV request has been updated.",
+                "created_at": created_at,
+                "kind": kind,
+                "message_type": update.get("message_type") or "system_update",
+            })
+            continue
+
+        timeline_updates.append({
+            "id": update.get("dedupe_key") or f"message:{update.get('ticket_id')}:{created_at}",
+            "type": "message",
+            "source": "admin",
+            "ticket_id": update.get("ticket_id"),
+            "status": (update.get("status") or "").strip().lower(),
+            "message": (update.get("raw_text") or update.get("message") or "").strip(),
+            "created_at": created_at,
+            "kind": kind or "sav_message",
+            "message_type": update.get("message_type") or "public_reply",
+        })
+
+    return {
+        "customer_identifier": data.get("customer_identifier"),
+        "order_id": order_id or token_order,
+        "updates": timeline_updates,
+        "next_cursor": data.get("next_cursor"),
+        "latest_order": _serialize_datetime_fields({
+            "status": normalize_order_status((latest_order or {}).get("status", "pending")) if latest_order else "",
+            "tracking_number": (latest_order or {}).get("tracking_number"),
+            "last_updated_at": (latest_order or {}).get("updated_at"),
+            "message": latest_order_message,
+        }),
+        "latest_ticket": _serialize_datetime_fields({
+            "status": normalize_sav_status((latest_ticket or {}).get("status", "open")) if latest_ticket else "",
+            "last_updated_at": (latest_ticket or {}).get("updated_at"),
+            "message": latest_ticket_message,
+        }),
+    }
+
+
+@app.get("/admin/customer-updates")
+def get_customer_updates_admin(
+    customer_identifier: str,
+    order_id: Optional[str] = None,
+    since: Optional[str] = None,
+    cursor: Optional[str] = None,
+    x_api_key: str = Header(None),
+):
+    if x_api_key != ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    data = collect_customer_updates(
+        customer_identifier=customer_identifier,
+        order_id=order_id,
+        since=since or cursor,
+        include_internal=True,
+    )
+
+    latest_order = get_latest_order_snapshot(customer_identifier, order_id=order_id)
+    latest_ticket = get_latest_sav_snapshot(customer_identifier, order_id=order_id)
+
+    return {
+        "customer_identifier": customer_identifier,
+        "order_id": order_id,
+        "updates": data.get("updates", []),
+        "next_cursor": data.get("next_cursor"),
+        "latest_order": _serialize_datetime_fields(latest_order or {}),
+        "latest_ticket": _serialize_datetime_fields(latest_ticket or {}),
+        "orders": [_serialize_datetime_fields(o) for o in data.get("orders", [])],
+        "tickets": [_serialize_datetime_fields(t) for t in data.get("tickets", [])],
+    }
+
+
+@app.get("/admin/audit-logs")
+def list_admin_audit_logs(limit: int = 100, api_key: str = Security(verify_api_key)):
+    from app.core.database import get_database
+
+    db = get_database()
+    logs = list(db["admin_audit_logs"].find({}, {"_id": 0}).sort("created_at", -1).limit(limit))
+    return {"total": len(logs), "logs": [_serialize_datetime_fields(log) for log in logs]}
+
+
 # =====================================================
 # 📊 ADMIN ENDPOINTS (ALL SECURED)
 # =====================================================
@@ -1920,18 +2868,46 @@ def admin_sav_tickets(limit: int = 50, x_api_key: str = Header(None)):
 
 
 @app.put("/admin/sav-tickets/{ticket_id}/status")
-def admin_update_sav_ticket_status(ticket_id: str, status: str, x_api_key: str = Header(None)):
+def admin_update_sav_ticket_status(
+    ticket_id: str,
+    status: str,
+    reason: str = "",
+    x_api_key: str = Header(None),
+    x_admin_user: str = Header("admin")
+):
     if x_api_key != ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    valid = ["open", "in_progress", "resolved", "canceled", "waiting_user"]
+    valid = ["open", "in_progress", "resolved", "canceled", "waiting_user", "waiting_customer", "cancelled"]
     if status not in valid:
         raise HTTPException(status_code=400, detail=f"Invalid status. Use: {', '.join(valid)}")
 
-    from app.core.sav_tickets import update_ticket
+    from app.core.sav_tickets import update_sav_ticket_status, get_sav_collection
 
-    update_ticket(ticket_id, {"status": status})
-    return {"success": True, "ticket_id": ticket_id, "new_status": status}
+    col = get_sav_collection()
+    before = col.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    ticket = update_sav_ticket_status(ticket_id, status, reason=reason, changed_by=x_admin_user)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    if "_id" in ticket:
+        del ticket["_id"]
+
+    log_admin_action(
+        action="sav_status_updated",
+        resource_type="sav_ticket",
+        resource_id=ticket_id,
+        admin_user=x_admin_user,
+        reason=reason,
+        before=before,
+        after=ticket,
+    )
+    try:
+        _notify_sav_customer(ticket or {}, x_admin_user, event_kind="sav_status", admin_message=reason)
+    except Exception:
+        logger.exception("Failed to notify customer for SAV status update")
+
+    return {"success": True, "ticket_id": ticket_id, "new_status": status, "reason": reason}
 # 📊 ADMIN: PERFORMANCE SCORE (SECURED)
 @app.get("/admin/performance-score")
 def performance_score(api_key: str = Security(verify_api_key)):
@@ -2305,7 +3281,8 @@ def admin_orders_stats(x_api_key: str = Header(None)):
 def update_order_status(
     order_id: str,
     status: str,
-    x_api_key: str = Header(None)
+    x_api_key: str = Header(None),
+    x_admin_user: str = Header("admin")
 ):
     """
     Change le statut d'une commande
@@ -2329,7 +3306,8 @@ def update_order_status(
     from app.core.order_manager import OrderManager
     
     order_mgr = OrderManager()
-    success = order_mgr.update_order_status(order_id, status)
+    before = order_mgr.get_order(order_id)
+    success = order_mgr.update_order_status(order_id, status, note="Status updated from dashboard", changed_by=x_admin_user)
     
     if not success:
         raise HTTPException(
@@ -2338,6 +3316,16 @@ def update_order_status(
         )
     
     logger.info(f"✅ Statut de la commande {order_id} changé à: {status}")
+    after = order_mgr.get_order(order_id)
+    log_admin_action(
+        action="order_status_updated",
+        resource_type="order",
+        resource_id=order_id,
+        admin_user=x_admin_user,
+        reason="Status update",
+        before=_serialize_datetime_fields(before or {}),
+        after=_serialize_datetime_fields(after or {}),
+    )
     
     return {
         "success": True,
@@ -2475,7 +3463,8 @@ def change_order_status(
     order_id: str,
     status: str,
     note: str = "",
-    x_api_key: str = Header(None)
+    x_api_key: str = Header(None),
+    x_admin_user: str = Header("admin")
 ):
     """Update order status with history tracking"""
     if x_api_key != ADMIN_API_KEY:
@@ -2487,12 +3476,26 @@ def change_order_status(
     
     from app.core.order_manager import OrderManager
     order_mgr = OrderManager()
+    before = order_mgr.get_order(order_id)
     
-    success = order_mgr.update_order_status(order_id, status, note=note, changed_by="admin")
+    success = order_mgr.update_order_status(order_id, status, note=note, changed_by=x_admin_user)
     if not success:
         raise HTTPException(status_code=404, detail="Order not found")
     
     order = order_mgr.get_order(order_id)
+    log_admin_action(
+        action="order_status_updated",
+        resource_type="order",
+        resource_id=order_id,
+        admin_user=x_admin_user,
+        reason=note,
+        before=_serialize_datetime_fields(before or {}),
+        after=_serialize_datetime_fields(order or {}),
+    )
+    try:
+        _notify_order_customer(order or {}, x_admin_user, reason=note)
+    except Exception:
+        logger.exception("Failed to notify customer for order status update")
     if "_id" in order:
         del order["_id"]
     if isinstance(order.get("created_at"), datetime):
@@ -2511,7 +3514,8 @@ def change_order_status(
 def set_tracking_number(
     order_id: str,
     tracking_number: str,
-    x_api_key: str = Header(None)
+    x_api_key: str = Header(None),
+    x_admin_user: str = Header("admin")
 ):
     """Set tracking number for a shipped order"""
     if x_api_key != ADMIN_API_KEY:
@@ -2519,10 +3523,27 @@ def set_tracking_number(
     
     from app.core.order_manager import OrderManager
     order_mgr = OrderManager()
+    before = order_mgr.get_order(order_id)
     
     success = order_mgr.update_tracking_number(order_id, tracking_number)
     if not success:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    after = order_mgr.get_order(order_id)
+    log_admin_action(
+        action="order_tracking_updated",
+        resource_type="order",
+        resource_id=order_id,
+        admin_user=x_admin_user,
+        reason="Tracking number updated",
+        before=_serialize_datetime_fields(before or {}),
+        after=_serialize_datetime_fields(after or {}),
+        metadata={"tracking_number": tracking_number},
+    )
+    try:
+        _notify_order_customer(after or {}, x_admin_user, reason="Tracking number updated")
+    except Exception:
+        logger.exception("Failed to notify customer for tracking update")
     
     return {
         "success": True,
@@ -2632,7 +3653,8 @@ def change_sav_ticket_status(
     ticket_id: str,
     status: str,
     reason: str = "",
-    x_api_key: str = Header(None)
+    x_api_key: str = Header(None),
+    x_admin_user: str = Header("admin")
 ):
     """Change SAV ticket status and track history"""
     if x_api_key != ADMIN_API_KEY:
@@ -2642,11 +3664,31 @@ def change_sav_ticket_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
     
-    from app.core.sav_tickets import update_sav_ticket_status
-    
-    ticket = update_sav_ticket_status(ticket_id, status, reason=reason, changed_by="admin")
+    from app.core.sav_tickets import update_sav_ticket_status, get_sav_collection
+
+    col = get_sav_collection()
+    before = col.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    ticket = update_sav_ticket_status(ticket_id, status, reason=reason, changed_by=x_admin_user)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+
+    raw_after = dict(ticket)
+    if "_id" in raw_after:
+        del raw_after["_id"]
+
+    log_admin_action(
+        action="sav_status_updated",
+        resource_type="sav_ticket",
+        resource_id=ticket_id,
+        admin_user=x_admin_user,
+        reason=reason,
+        before=before,
+        after=raw_after,
+    )
+    try:
+        _notify_sav_customer(ticket or {}, x_admin_user, event_kind="sav_status", admin_message=reason)
+    except Exception:
+        logger.exception("Failed to notify customer for SAV status update")
     
     if "_id" in ticket:
         del ticket["_id"]
@@ -2666,17 +3708,63 @@ def update_sav_ticket_note(
     ticket_id: str,
     internal_note: str = "",
     admin_action: str = "",
-    x_api_key: str = Header(None)
+    resolution_note: str = "",
+    send_resolution_to_customer: bool = False,
+    x_api_key: str = Header(None),
+    x_admin_user: str = Header("admin")
 ):
     """Update internal note and admin action for SAV ticket"""
     if x_api_key != ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
     
-    from app.core.sav_tickets import add_sav_ticket_note
-    
+    from app.core.sav_tickets import add_sav_ticket_note, get_sav_collection, add_sav_ticket_message_with_meta
+
+    before = get_sav_collection().find_one({"ticket_id": ticket_id}, {"_id": 0})
     ticket = add_sav_ticket_note(ticket_id, internal_note, admin_action)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+
+    after_for_audit = dict(ticket)
+    if "_id" in after_for_audit:
+        del after_for_audit["_id"]
+    log_admin_action(
+        action="sav_note_updated",
+        resource_type="sav_ticket",
+        resource_id=ticket_id,
+        admin_user=x_admin_user,
+        reason=admin_action,
+        before=before,
+        after=after_for_audit,
+        metadata={"internal_note": internal_note},
+    )
+
+    if internal_note:
+        ticket = add_sav_ticket_message_with_meta(
+            ticket_id,
+            "admin",
+            internal_note,
+            author=x_admin_user,
+            delivery={},
+            message_type="internal",
+            visible_to_customer=False,
+        ) or ticket
+
+    if resolution_note:
+        ticket = add_sav_ticket_message_with_meta(
+            ticket_id,
+            "admin",
+            resolution_note,
+            author=x_admin_user,
+            delivery={},
+            message_type="resolution",
+            visible_to_customer=bool(send_resolution_to_customer),
+        ) or ticket
+
+        if send_resolution_to_customer:
+            try:
+                _notify_sav_customer(ticket or {}, x_admin_user, event_kind="sav_message", admin_message=resolution_note)
+            except Exception:
+                logger.exception("Failed to notify customer for SAV resolution note")
     
     if "_id" in ticket:
         del ticket["_id"]
@@ -2691,17 +3779,65 @@ def update_sav_ticket_note(
 def add_sav_ticket_message(
     ticket_id: str,
     content: str,
-    x_api_key: str = Header(None)
+    message_type: str = "public_reply",
+    send_to_customer: bool = True,
+    x_api_key: str = Header(None),
+    x_admin_user: str = Header("admin")
 ):
     """Add admin message to SAV ticket"""
     if x_api_key != ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
     
-    from app.core.sav_tickets import add_sav_ticket_message
-    
-    ticket = add_sav_ticket_message(ticket_id, "admin", content)
+    from app.core.sav_tickets import get_sav_collection, add_sav_ticket_message_with_meta
+
+    valid_message_types = {"internal", "public_reply", "system_update", "resolution"}
+    if message_type not in valid_message_types:
+        raise HTTPException(status_code=400, detail=f"Invalid message_type. Use: {', '.join(sorted(valid_message_types))}")
+
+    col = get_sav_collection()
+    ticket_before = col.find_one({"ticket_id": ticket_id})
+    if not ticket_before:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    should_deliver_to_customer = bool(send_to_customer) and message_type in {"public_reply", "system_update", "resolution"}
+    delivery = _deliver_admin_message(ticket_before, content, x_admin_user) if should_deliver_to_customer else {
+        "delivery_id": "",
+        "status": "skipped",
+        "channel": (ticket_before.get("channel") or "web"),
+        "recipient": "",
+        "attempts": 0,
+        "error": "",
+    }
+    ticket = add_sav_ticket_message_with_meta(
+        ticket_id,
+        "admin",
+        content,
+        author=x_admin_user,
+        delivery=delivery,
+        message_type=message_type,
+        visible_to_customer=should_deliver_to_customer,
+    )
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+
+    after_for_audit = dict(ticket)
+    if "_id" in after_for_audit:
+        del after_for_audit["_id"]
+    log_admin_action(
+        action="sav_message_sent",
+        resource_type="sav_ticket",
+        resource_id=ticket_id,
+        admin_user=x_admin_user,
+        reason="Admin support message logged",
+        before={"ticket_id": ticket_id},
+        after=after_for_audit,
+        metadata={"delivery": delivery, "message_type": message_type, "send_to_customer": should_deliver_to_customer},
+    )
+    if should_deliver_to_customer:
+        try:
+            _notify_sav_customer(ticket or {}, x_admin_user, event_kind="sav_message", admin_message=content)
+        except Exception:
+            logger.exception("Failed to notify customer for SAV admin message")
     
     if "_id" in ticket:
         del ticket["_id"]
@@ -2713,4 +3849,5 @@ def add_sav_ticket_message(
             if isinstance(msg.get("created_at"), datetime):
                 msg["created_at"] = msg["created_at"].isoformat()
     
+    ticket["last_delivery"] = delivery
     return ticket

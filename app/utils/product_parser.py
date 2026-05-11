@@ -1,14 +1,35 @@
 """
-Parser pour extraire les produits depuis business_data.txt
-Format attendu :
-    Produit : Nom du produit
-    Prix : XXX TND
-    Disponibilité : En stock / Rupture de stock
-    Livraison : XX jours/heures
+Parser pour extraire les produits depuis business_data.txt.
+
+Supporte à la fois:
+- le format legacy: Produit / Prix / Disponibilité / Livraison
+- le format actuel: Name / Price / Stock / Delivery / Image / Tags
 """
 
 import re
+from pathlib import Path
 from typing import List, Dict, Optional
+
+
+DEFAULT_CANDIDATES = [
+    Path("data/business_data.txt"),
+    Path("uploaded_docs/business_data.txt"),
+    Path("data/data_businessv2.txt"),
+]
+
+
+def _resolve_business_data_path(file_path: str | None = None) -> Path:
+    if file_path:
+        path = Path(file_path)
+        if path.exists():
+            return path
+
+    for candidate in DEFAULT_CANDIDATES:
+        if candidate.exists():
+            return candidate
+
+    return Path(file_path or DEFAULT_CANDIDATES[0])
+
 
 def parse_business_data(file_path: str = "data/business_data.txt") -> List[Dict]:
     """
@@ -20,50 +41,62 @@ def parse_business_data(file_path: str = "data/business_data.txt") -> List[Dict]
     products = []
     
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        path = _resolve_business_data_path(file_path)
+        with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Séparer par blocs (double saut de ligne)
-        blocks = content.split('\n\n')
-        
+        blocks = [block.strip() for block in content.split('PRODUCT:') if block.strip()]
+
         for block in blocks:
-            if 'Produit :' not in block:
-                continue  # Ignorer les blocs sans produit
-            
-            product = {}
-            lines = block.strip().split('\n')
-            
+            product: Dict = {}
+            lines = [line.strip() for line in block.splitlines() if line.strip()]
+
             for line in lines:
-                line = line.strip()
-                
-                if line.startswith('Produit :'):
-                    product['name'] = line.replace('Produit :', '').strip()
-                
-                elif line.startswith('Prix :'):
-                    # Extraire le prix (ex: "310 TND" -> 310)
-                    price_match = re.search(r'(\d+(?:\.\d+)?)', line)
+                if ':' not in line:
+                    continue
+
+                key, value = [part.strip() for part in line.split(':', 1)]
+                key_lower = key.lower()
+                value_lower = value.lower()
+
+                if key_lower in {'id'}:
+                    product['id'] = value
+                elif key_lower in {'produit', 'name'}:
+                    product['name'] = value
+                elif key_lower in {'prix', 'price'}:
+                    price_match = re.search(r'(\d+(?:\.\d+)?)', value)
                     if price_match:
                         product['price'] = float(price_match.group(1))
-                
-                elif line.startswith('Disponibilité :'):
-                    dispo = line.replace('Disponibilité :', '').strip().lower()
-                    product['in_stock'] = 'en stock' in dispo
-                    product['stock_status'] = line.replace('Disponibilité :', '').strip()
-                
-                elif line.startswith('Livraison :'):
-                    product['delivery_time'] = line.replace('Livraison :', '').strip()
-            
-            if product.get('name'):  # Ajouter seulement si nom existe
+                    product['price_text'] = value
+                elif key_lower in {'disponibilité', 'stock'}:
+                    product['stock_status'] = value
+                    product['in_stock'] = ('in stock' in value_lower) or ('en stock' in value_lower)
+                elif key_lower in {'livraison', 'delivery'}:
+                    product['delivery_time'] = value
+                elif key_lower == 'image':
+                    product['image'] = value
+                elif key_lower == 'brand':
+                    product['brand'] = value
+                elif key_lower == 'category':
+                    product['category'] = value
+                elif key_lower == 'sizes':
+                    product['sizes'] = value
+                elif key_lower == 'color':
+                    product['color'] = value
+                elif key_lower == 'tags':
+                    product['tags'] = value
+
+            if product.get('name'):
                 products.append(product)
-        
-        print(f"✅ {len(products)} produits chargés depuis {file_path}")
+
+        print(f"Loaded {len(products)} products from {path}")
         return products
     
     except FileNotFoundError:
-        print(f"❌ Fichier {file_path} introuvable")
+        print(f"File not found: {file_path}")
         return []
     except Exception as e:
-        print(f"❌ Erreur lors du parsing: {e}")
+        print(f"Parsing error: {e}")
         return []
 
 

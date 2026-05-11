@@ -24,13 +24,16 @@ Retourne UNIQUEMENT un JSON strict, sans texte autour:
 
 Règles:
 - human: demande explicite d'agent/conseiller/humain surtout, frustration, colère, escalade.
-- order: intention d'achat/commande/passer commande/acheter/commander/finaliser/panier.
+- order: INTENTION D'ACHAT EXPLICITE seulement: commander, acheter, panier, finaliser, valider. Exemples: "je veux commander Puma", "acheter des chaussures", "finaliser ma commande".
 - sav: problème post-commande ou demande de modification/annulation/retour/échange/remboursement/SUIVI/ADRESSE/commande existante.
     * IMPORTANT: suivi/tracking/où est ma commande ou mon colis/pas encore arrivée/retard => route="sav".
     * IMPORTANT: Si la question est générale sur le DÉLAI DE LIVRAISON (délai livraison, combien de temps la livraison) => route="info", PAS sav.
+- info: TOUTES les QUESTIONS SUR LES PRODUITS (prix, disponibilité, stocks, caractéristiques, couleurs, tailles, description).
+    * IMPORTANT: "prix Reebok", "combien coûte la Puma", "Adidas en stock", "détails du produit" => route="info".
+    * IMPORTANT: Questions sur les produits (pas intention d'achat) => TOUJOURS info/RAG.
 - info: questions sur le magasin/boutique/localisation (magasin, boutique, point de vente, adresse du magasin, localisation, où êtes-vous) => route="info".
 - Ne confonds pas "où est votre magasin" (info) avec "où est ma commande/mon colis" (sav).
-- info: FAQ, prix, disponibilité, explications, how-to, questions non actionnables, et **DÉLAI/ETA DE LIVRAISON**.
+- info: FAQ, explications, how-to, questions non actionnables, et **DÉLAI/ETA DE LIVRAISON**.
 - Si la demande est un how-to comme "comment faire..." sans action immédiate, choisis info.
 
 Contexte état: {state}
@@ -97,11 +100,20 @@ def _fallback_route(query: str, state: str = "idle") -> Dict[str, Any]:
     if any(marker in q for marker in sav_markers):
         return {"route": "sav", "confidence": 0.86, "reason": "post-order / support keywords detected"}
 
-    order_markers = ["acheter", "commander", "commande", "panier", "finaliser", "valider", "je veux", "je voudrais", "je souhaite", "prendre"]
-    if any(marker in q for marker in order_markers):
-        return {"route": "order", "confidence": 0.82, "reason": "purchase intent detected"}
+    # Product information questions: prix, disponibilité, détails, livraison (NOT order intent)
+    product_info_markers = [
+        "prix", "coût", "cout", "combien", "disponible", "stock", "dispo",
+        "livraison", "délai", "delai", "détail", "detail", "description",
+        "caractéristique", "couleur", "taille", "tailles", "size"
+    ]
+    if any(marker in q for marker in product_info_markers):
+        return {"route": "info", "confidence": 0.92, "reason": "product information request => RAG"}
 
-    if any(marker in q for marker in ["merci", "thanks", "thank you", "prix", "combien", "disponible", "comment", "c'est quoi", "qu'est-ce", "quels", "quelle", "où", "quand"]):
+    order_markers = ["acheter", "commander", "panier", "finaliser", "valider"]
+    if any(marker in q for marker in order_markers):
+        return {"route": "order", "confidence": 0.82, "reason": "explicit purchase intent"}
+
+    if any(marker in q for marker in ["merci", "thanks", "thank you", "comment", "c'est quoi", "qu'est-ce", "quels", "quelle", "où", "quand"]):
         return {"route": "info", "confidence": 0.78, "reason": "information request detected"}
 
     return {"route": "info", "confidence": 0.55, "reason": "default fallback to info"}

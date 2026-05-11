@@ -9,13 +9,15 @@ MEMORY_STORE: defaultdict[str, List[Dict[str, str]]] = defaultdict(list)
 # Product context per session (for implicit order handling)
 # { session_id: {
 #     "last_candidates": [{"name": str, "source": str, "confidence": float, "ts": datetime}, ...],
-#     "selected_product": Optional[str],  # when user explicitly chose
+#     "selected_product": Optional[str],  # legacy/current selection alias
+#     "current_product": Optional[str],   # current recognized/selected product
 #     "last_updated_at": datetime
 #   }
 # }
 PRODUCT_CONTEXT_STORE: defaultdict[str, Dict] = defaultdict(lambda: {
     "last_candidates": [],
     "selected_product": None,
+    "current_product": None,
     "last_updated_at": None
 })
 
@@ -76,7 +78,7 @@ def get_product_context(session_id: str) -> Dict:
     Get product context for session, removing expired candidates.
     
     Returns:
-        Dict with "candidates" (valid list), "selected_product" (or None)
+        Dict with "candidates" (valid list), "selected_product" (or None), "current_product" (or None)
     """
     ctx = PRODUCT_CONTEXT_STORE[session_id]
     
@@ -94,13 +96,16 @@ def get_product_context(session_id: str) -> Dict:
     
     # Check if selected_product is still recent
     selected = ctx.get("selected_product")
+    current_product = ctx.get("current_product")
     if selected and ctx.get("last_updated_at"):
         if ctx["last_updated_at"] < ttl_cutoff:
             selected = None
+            current_product = None
     
     return {
         "candidates": valid_candidates,
-        "selected_product": selected
+        "selected_product": selected,
+        "current_product": current_product or selected,
     }
 
 
@@ -114,7 +119,15 @@ def set_product_selection(session_id: str, product_name: Optional[str]) -> None:
     """
     ctx = PRODUCT_CONTEXT_STORE[session_id]
     ctx["selected_product"] = product_name
+    ctx["current_product"] = product_name
     ctx["last_updated_at"] = datetime.utcnow()
+
+
+def set_current_product(session_id: str, product_name: Optional[str]) -> None:
+    """
+    Store the current recognized product in session memory.
+    """
+    set_product_selection(session_id, product_name)
 
 
 def clear_product_context(session_id: str) -> None:
@@ -124,5 +137,6 @@ def clear_product_context(session_id: str) -> None:
     PRODUCT_CONTEXT_STORE[session_id] = {
         "last_candidates": [],
         "selected_product": None,
+        "current_product": None,
         "last_updated_at": None
     }

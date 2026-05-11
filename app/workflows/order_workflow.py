@@ -47,6 +47,7 @@ class OrderWorkflow:
         
         # Charger les produits
         self.products = parse_business_data()
+        self.product_names = [p.get("name") for p in self.products if p.get("name")]
         
         # État de la conversation
         self.state = STATES.IDLE
@@ -66,6 +67,22 @@ class OrderWorkflow:
             self.product_options = saved_data.get("product_options", [])
         else:
             self.temp_data = {}
+
+    def _product_lookup(self, product_name: str) -> Optional[Dict]:
+        return get_product_by_name(product_name, self.products)
+
+    def _product_price(self, product_name: str) -> float:
+        product = self._product_lookup(product_name)
+        if not product:
+            return 0.0
+        price = product.get("price", 0)
+        try:
+            return float(price)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _available_product_names(self) -> list[str]:
+        return [p.get("name") for p in self.products if p.get("name") and p.get("in_stock", False)]
     
     def _save_temp_data(self):
         """Sauvegarde les données temporaires en base"""
@@ -128,19 +145,16 @@ class OrderWorkflow:
                 if msg['role'] == 'assistant':
                     last_bot_message = msg['content'].lower()
                     break
-            
-            # Détecter le produit mentionné
-            products_map = {
-                "puma": {"name": "Puma RS-X", "price": 310, "in_stock": True},
-                "adidas": {"name": "Adidas Ultraboost", "price": 420, "in_stock": True},
-                "converse": {"name": "Converse Chuck Taylor", "price": 190, "in_stock": True},
-                "new balance": {"name": "New Balance 574", "price": 260, "in_stock": True}
-            }
-            
+
             detected_product = None
-            for key, product in products_map.items():
-                if key in last_bot_message:
-                    detected_product = product
+            for product in self.products:
+                product_name = (product.get("name") or "").lower()
+                if product_name and product_name in last_bot_message:
+                    detected_product = {
+                        "name": product.get("name"),
+                        "price": self._product_price(product.get("name", "")),
+                        "in_stock": bool(product.get("in_stock", False)),
+                    }
                     break
             
             if detected_product:
@@ -292,14 +306,11 @@ class OrderWorkflow:
                 if resolution["status"] == "direct":
                     # Direct product found - add to cart
                     product_name = resolution["product_name"]
-                    # Get product details from catalog
-                    product_details = {
-                        "Puma RS-X": {"price": 310, "in_stock": True},
-                        "Adidas Ultraboost": {"price": 420, "in_stock": True},
-                        "Converse Chuck Taylor": {"price": 190, "in_stock": True},
-                        "New Balance 574": {"price": 260, "in_stock": True},
+                    product = self._product_lookup(product_name) or {"name": product_name}
+                    details = {
+                        "price": self._product_price(product_name),
+                        "in_stock": bool(product.get("in_stock", True)),
                     }
-                    details = product_details.get(product_name, {"price": 0})
                     self.cart_manager.add_item({"name": product_name, "price": details.get("price", 0)}, quantity=1)
                     
                     from app.core.memory import set_product_selection
@@ -320,7 +331,11 @@ class OrderWorkflow:
                 
                 elif resolution["status"] == "ask":
                     # No context - ask user what product
-                    response = "Quel produit voulez-vous commander ? 🛍️\n\nOptions: Puma RS-X, Adidas Ultraboost, Converse Chuck Taylor, New Balance 574"
+                    options = resolution.get("options") or self.product_names
+                    options = [name for name in options if name]
+                    response = "Quel produit voulez-vous commander ? 🛍️"
+                    if options:
+                        response += "\n\nOptions: " + ", ".join(options)
                     return response, STATES.ASKING_PRODUCT
             else:
                 # Cart not empty - proceed to checkout

@@ -2449,7 +2449,12 @@ function renderTicketModal(ticket) {
                     <div class="ticket-thread">
                         ${messages.map(msg => `
                             <div class="thread-item">
-                                <div><strong>${escapeHtml((msg.role || 'user').toUpperCase())}</strong> <span class="mini">${formatDate(msg.created_at || msg.ts || ticket.updated_at)}</span></div>
+                                <div>
+                                    <strong>${escapeHtml((msg.role || 'user').toUpperCase())}</strong>
+                                    <span class="badge badge-info" style="margin-left:6px;">${escapeHtml(msg.message_type || 'system_update')}</span>
+                                    <span class="badge ${msg.visible_to_customer === false ? 'badge-danger' : 'badge-success'}" style="margin-left:6px;">${msg.visible_to_customer === false ? 'Internal' : 'Customer'}</span>
+                                    <span class="mini">${formatDate(msg.created_at || msg.ts || ticket.updated_at)}</span>
+                                </div>
                                 <div>${escapeHtml(msg.content || msg.text || '')}</div>
                             </div>
                         `).join('')}
@@ -2500,19 +2505,41 @@ function renderTicketModal(ticket) {
                         <label>Action prise</label>
                         <textarea id="ticketAdminAction" rows="4" placeholder="Décrire l'action prise...">${escapeHtml(ticket.admin_action || '')}</textarea>
                     </div>
+                    <div class="ticket-field" style="margin-bottom:10px;">
+                        <label>Réponse client</label>
+                        <textarea id="ticketCustomerReply" rows="4" placeholder="Message visible au client..."></textarea>
+                    </div>
+                    <div class="ticket-field" style="margin-bottom:10px;">
+                        <label>Type de message</label>
+                        <select id="ticketCustomerReplyType">
+                            <option value="public_reply" selected>public_reply</option>
+                            <option value="system_update">system_update</option>
+                            <option value="resolution">resolution</option>
+                            <option value="internal">internal</option>
+                        </select>
+                    </div>
+                    <div class="ticket-field" style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" id="ticketSendToCustomer" checked>
+                        <label for="ticketSendToCustomer" style="margin:0;">Envoyer au client</label>
+                    </div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button class="btn btn-secondary" onclick="saveTicketAdminFields('${escapeHtml(ticket.ticket_id || '')}')">Sauvegarder note/action</button>
+                        <button class="btn btn-primary" onclick="sendTicketCustomerReply('${escapeHtml(ticket.ticket_id || '')}')">Envoyer la réponse</button>
                     </div>
                 </div>
 
                 <div class="ticket-box">
                     <h4>Résolution</h4>
                     <div class="ticket-field">
-                        <label>Pourquoi ?</label>
-                        <textarea id="ticketResolveReason" rows="3" placeholder="Raison obligatoire si résolu"></textarea>
+                        <label>Resolution note (optional)</label>
+                        <textarea id="ticketResolveReason" rows="3" placeholder="Optional customer-facing resolution note"></textarea>
                     </div>
                     <div style="margin-top:10px;">
-                        <button class="btn btn-danger" onclick="markTicketResolved('${escapeHtml(ticket.ticket_id || '')}')">Marquer comme résolu</button>
+                        <div class="ticket-field" style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                            <input type="checkbox" id="ticketSendResolutionToCustomer" checked>
+                            <label for="ticketSendResolutionToCustomer" style="margin:0;">Partager la note de résolution au client</label>
+                        </div>
+                        <button class="btn btn-danger" onclick="markTicketResolved('${escapeHtml(ticket.ticket_id || '')}')">Resolved ✅</button>
                     </div>
                 </div>
             </div>
@@ -2525,11 +2552,7 @@ async function saveTicketStatusAndNotes(ticketId) {
     const reason = document.getElementById('ticketResolveReason')?.value || '';
     const internalNote = document.getElementById('ticketInternalNote')?.value || '';
     const adminAction = document.getElementById('ticketAdminAction')?.value || '';
-
-    if (status === 'resolved' && !reason.trim()) {
-        showToast('Pourquoi ? est obligatoire si résolu', 'error');
-        return;
-    }
+    const sendResolutionToCustomer = !!document.getElementById('ticketSendResolutionToCustomer')?.checked;
 
     try {
         const statusResp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/status?status=${encodeURIComponent(status)}&reason=${encodeURIComponent(status === 'resolved' ? reason : '')}`, {
@@ -2538,7 +2561,7 @@ async function saveTicketStatusAndNotes(ticketId) {
         });
         if (!statusResp.ok) throw new Error(`HTTP ${statusResp.status}`);
 
-        const noteResp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/note?internal_note=${encodeURIComponent(internalNote)}&admin_action=${encodeURIComponent(adminAction)}`, {
+        const noteResp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/note?internal_note=${encodeURIComponent(internalNote)}&admin_action=${encodeURIComponent(adminAction)}&resolution_note=${encodeURIComponent(status === 'resolved' ? reason : '')}&send_resolution_to_customer=${sendResolutionToCustomer ? 'true' : 'false'}`, {
             method: 'POST',
             headers: { 'x-api-key': API_KEY }
         });
@@ -2558,7 +2581,7 @@ async function saveTicketAdminFields(ticketId) {
     const adminAction = document.getElementById('ticketAdminAction')?.value || '';
 
     try {
-        const resp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/note?internal_note=${encodeURIComponent(internalNote)}&admin_action=${encodeURIComponent(adminAction)}`, {
+        const resp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/note?internal_note=${encodeURIComponent(internalNote)}&admin_action=${encodeURIComponent(adminAction)}&send_resolution_to_customer=false`, {
             method: 'POST',
             headers: { 'x-api-key': API_KEY }
         });
@@ -2572,15 +2595,41 @@ async function saveTicketAdminFields(ticketId) {
     }
 }
 
-async function markTicketResolved(ticketId) {
-    const reason = document.getElementById('ticketResolveReason')?.value?.trim() || '';
-    if (!reason) {
-        showToast('Pourquoi ? est obligatoire pour résoudre', 'error');
+async function sendTicketCustomerReply(ticketId) {
+    const content = (document.getElementById('ticketCustomerReply')?.value || '').trim();
+    const messageType = document.getElementById('ticketCustomerReplyType')?.value || 'public_reply';
+    const sendToCustomer = !!document.getElementById('ticketSendToCustomer')?.checked;
+
+    if (!content) {
+        showToast('Le message client est vide', 'error');
         return;
     }
 
     try {
+        const resp = await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/message?content=${encodeURIComponent(content)}&message_type=${encodeURIComponent(messageType)}&send_to_customer=${sendToCustomer ? 'true' : 'false'}`, {
+            method: 'POST',
+            headers: { 'x-api-key': API_KEY }
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        showToast('Message support enregistré', 'success');
+        await loadSavTickets();
+        await openTicketModal(ticketId);
+    } catch (error) {
+        console.error(error);
+        showToast('Impossible d\'envoyer la réponse client', 'error');
+    }
+}
+
+async function markTicketResolved(ticketId) {
+    const reason = document.getElementById('ticketResolveReason')?.value?.trim() || '';
+    const sendResolutionToCustomer = !!document.getElementById('ticketSendResolutionToCustomer')?.checked;
+
+    try {
         await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/status?status=resolved&reason=${encodeURIComponent(reason)}`, {
+            method: 'POST',
+            headers: { 'x-api-key': API_KEY }
+        });
+        await fetch(`${API_URL}/admin/sav-tickets/${encodeURIComponent(ticketId)}/note?resolution_note=${encodeURIComponent(reason)}&send_resolution_to_customer=${sendResolutionToCustomer ? 'true' : 'false'}`, {
             method: 'POST',
             headers: { 'x-api-key': API_KEY }
         });

@@ -7,6 +7,7 @@ from typing import Dict, Optional
 from datetime import datetime
 from app.core.database import get_database
 from app.core.cart_manager import CartManager
+from app.core.customer_ops import build_customer_identifier
 
 # Frais de livraison
 DELIVERY_FEE = 8  # TND
@@ -78,9 +79,11 @@ class OrderManager:
         
         # Créer la commande avec status_history
         now = datetime.utcnow()
+        customer_identifier = build_customer_identifier(channel, session_id)
         order = {
             "order_id": order_id,
             "session_id": session_id,
+            "customer_identifier": customer_identifier,
             "customer": {
                 "name": customer_info.get("name", ""),
                 "phone": customer_info.get("phone", ""),
@@ -160,12 +163,23 @@ class OrderManager:
     
     def update_tracking_number(self, order_id: str, tracking_number: str, note: str = "Tracking number set") -> bool:
         """Met à jour le numéro de suivi"""
+        now = datetime.utcnow()
+        order = self.get_order(order_id)
         result = self.orders_collection.update_one(
             {"order_id": order_id},
             {
                 "$set": {
                     "tracking_number": tracking_number,
-                    "updated_at": datetime.utcnow()
+                    "updated_at": now
+                },
+                "$push": {
+                    "status_history": {
+                        "status": (order or {}).get("status", "pending"),
+                        "changed_at": now,
+                        "changed_by": "admin",
+                        "note": note,
+                        "tracking_number": tracking_number,
+                    }
                 }
             }
         )

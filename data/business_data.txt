@@ -1,30 +1,192 @@
-Produit : Puma RS-X
-Prix : 310 TND
-Disponibilité : En stock
-Livraison : 72h
+STORE: Sneaker House
 
-Produit : Converse Chuck Taylor
-Prix : 190 TND
-Disponibilité : En stock
-Livraison : 48h
+DESCRIPTION:
+Boutique spécialisée en chaussures sport et lifestyle pour hommes et femmes.
+Produits originaux, livraison rapide partout en Tunisie.
 
-Produit : Adidas Ultraboost
-Prix : 420 TND
-Disponibilité : En stock
-Livraison : 48h
+==================================================
+PRODUCT:
+ID: P001
+Name: Puma RS-X
+Brand: Puma
+Category: Shoes
+Price: 310 TND
+Stock: In stock
+Sizes: 40,41,42,43
+Color: Black / White
+Delivery: 72h
+Image: puma-rsx.jpg
+Tags: puma sneaker sport running black white
 
-Produit : New Balance 574
-Prix : 260 TND
-Disponibilité : Rupture de stock
-Livraison : 3 jours
+PRODUCT:
+ID: P002
+Name: Adidas Ultraboost
+Brand: Adidas
+Category: Shoes
+Price: 420 TND
+Stock: In stock
+Sizes: 41,42,43,44
+Color: White
+Delivery: 48h
+Image: adidas-ultraboost.jpg
+Tags: adidas ultraboost white running premium
 
-Service : Livraison Express
-Délai : 24h
-Frais : 15 TND
+PRODUCT:
+ID: P003
+Name: Converse Chuck Taylor
+Brand: Converse
+Category: Shoes
+Price: 190 TND
+Stock: In stock
+Sizes: 39,40,41,42
+Color: Black
+Delivery: 48h
+Image: converse-chuck-taylor.jpg
+Tags: converse chuck taylor black casual classic
 
-Service : Retours
-Délai : 7 jours après achat
-Condition : Produit non utilisé avec boîte
+PRODUCT:
+ID: P004
+Name: New Balance 574
+Brand: New Balance
+Category: Shoes
+Price: 260 TND
+Stock: Out of stock
+Sizes: 40,41,42
+Color: Grey
+Delivery: 3 days
+Image: new-balance-574.jpg
+Tags: new balance grey casual lifestyle
 
-Localisation magasin : Monastir Centre Ville
-Paiement accepté : Carte bancaire, Espèces, Paiement à la livraison
+PRODUCT:
+ID: P005
+Name: Nike Air Max 270
+Brand: Nike
+Category: Shoes
+Price: 390 TND
+Stock: In stock
+Sizes: 40,41,42,43,44
+Color: White / Blue
+Delivery: 48h
+Image: nike-airmax-270.jpg
+Tags: nike air max white blue running sport
+
+PRODUCT:
+ID: P006
+Name: Vans Old Skool
+Brand: Vans
+Category: Shoes
+Price: 220 TND
+Stock: In stock
+Sizes: 39,40,41,42
+Color: Black / White
+Delivery: 48h
+Image: vans-old-skool.jpg
+Tags: vans skate black white casual
+
+PRODUCT:
+ID: P007
+Name: Reebok Classic Leather
+Brand: Reebok
+Category: Shoes
+Price: 240 TND
+Stock: In stock
+Sizes: 40,41,42,43
+Color: White
+Delivery: 72h
+Image: reebok-classic-leather.jpg
+Tags: reebok white leather classic retro
+
+PRODUCT:
+ID: P008
+Name: Puma Suede Classic
+Brand: Puma
+Category: Shoes
+Price: 250 TND
+Stock: In stock
+Sizes: 40,41,42
+Color: Red
+Delivery: 48h
+Image: puma-suede-classic.jpg
+Tags: puma suede red casual classic
+
+PRODUCT:
+ID: P009
+Name: Adidas Superstar
+Brand: Adidas
+Category: Shoes
+Price: 330 TND
+Stock: In stock
+Sizes: 40,41,42,43
+Color: White / Black
+Delivery: 48h
+Image: adidas-superstar.jpg
+Tags: adidas superstar shell toe white black
+
+PRODUCT:
+ID: P010
+Name: Nike Revolution 6
+Brand: Nike
+Category: Shoes
+Price: 280 TND
+Stock: In stock
+Sizes: 40,41,42,43
+Color: Black
+Delivery: 72h
+Image: nike-revolution-6.jpg
+Tags: nike running black budget sport
+
+==================================================
+SERVICES:
+
+Service: Livraison Express
+Delay: 24h
+Fee: 15 TND
+
+Service: Livraison Standard
+Delay: 48h - 72h
+Fee: 8 TND
+
+Service: Retours
+Delay: 7 jours après achat
+Condition: Produit non utilisé avec boîte
+
+Service: Échange de taille
+Delay: Sous 7 jours
+Condition: Produit neuf
+
+==================================================
+LOCATION:
+
+Ville: Monastir
+Adresse: Centre Ville Monastir
+
+==================================================
+PAYMENT METHODS:
+
+- Carte bancaire
+- Espèces
+- Paiement à la livraison
+
+==================================================
+BUSINESS HOURS:
+
+Lundi - Samedi: 09:00 - 20:00
+Dimanche: Fermé
+
+==================================================
+FAQ:
+
+Q: Combien dure la livraison ?
+A: Entre 48h et 72h selon la région.
+
+Q: Puis-je payer à la livraison ?
+A: Oui, paiement à la livraison disponible.
+
+Q: Puis-je échanger la taille ?
+A: Oui sous 7 jours si produit neuf.
+
+Q: Avez-vous des produits originaux ?
+A: Oui, tous nos produits sont authentiques.
+
+Q: Où êtes-vous situés ?
+A: Monastir Centre Ville.

@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 import uuid
 
 from app.core.database import get_database
+from app.core.customer_ops import build_customer_identifier
 
 
 def _now():
@@ -96,7 +97,15 @@ def create_or_update_ticket(
     """
     col = get_sav_collection()
 
-    active_statuses = ["open", "in_progress"]
+    active_statuses = ["open", "in_progress", "waiting_customer", "waiting_user"]
+    customer_identifier = build_customer_identifier(channel, session_id)
+
+    customer_phone = None
+    if order_id:
+        order = get_database()["orders"].find_one({"order_id": order_id}, {"customer.phone": 1})
+        if order and isinstance(order.get("customer"), dict):
+            customer_phone = order["customer"].get("phone")
+
     existing = col.find_one(
         {
             "session_id": session_id,
@@ -115,7 +124,10 @@ def create_or_update_ticket(
             "summary": summary or existing.get("summary", ""),
             "last_user_message": last_user_message or existing.get("last_user_message", ""),
             "channel": channel or existing.get("channel", "web"),
+            "customer_identifier": existing.get("customer_identifier") or customer_identifier,
         }
+        if customer_phone and not existing.get("customer_phone"):
+            patch["customer_phone"] = customer_phone
         col.update_one({"_id": existing["_id"]}, {"$set": patch})
         return col.find_one({"_id": existing["_id"]})
 
@@ -127,6 +139,8 @@ def create_or_update_ticket(
         "order_id": order_id,
         "category": category,
         "status": status or "open",  # open | in_progress | waiting_customer | resolved | canceled
+        "customer_identifier": customer_identifier,
+        "customer_phone": customer_phone,
         "summary": summary,
         "last_user_message": last_user_message,
         "internal_note": "",
@@ -248,10 +262,59 @@ def add_sav_ticket_message(ticket_id: str, role: str, content: str, created_at: 
                 "messages_thread": {
                     "role": role,
                     "content": content,
-                    "created_at": now
+                    "author": role,
+                    "message_type": "public_reply" if role == "admin" else "system_update",
+                    "visible_to_customer": role == "admin",
+                    "created_at": now,
+                    "delivery": {}
                 }
             },
             "$set": {"updated_at": _now()}
         }
     )
     return col.find_one({"ticket_id": ticket_id})
+
+
+def add_sav_ticket_message_with_meta(
+    ticket_id: str,
+    role: str,
+    content: str,
+    author: Optional[str] = None,
+    delivery: Optional[Dict[str, Any]] = None,
+    message_type: str = "public_reply",
+    visible_to_customer: bool = True,
+    created_at: Optional[datetime] = None,
+) -> Optional[Dict[str, Any]]:
+    col = get_sav_collection()
+    now = created_at or _now()
+
+    col.update_one(
+        {"ticket_id": ticket_id},
+        {
+            "$push": {
+                "messages_thread": {
+                    "role": role,
+                    "author": author or role,
+                    "content": content,
+                    "message_type": message_type,
+                    "visible_to_customer": visible_to_customer,
+                    "created_at": now,
+                    "delivery": delivery or {},
+                }
+            },
+            "$set": {"updated_at": _now()}
+        }
+    )
+    return col.find_one({"ticket_id": ticket_id})
+
+
+def get_latest_active_ticket(session_id: str, channel: str) -> Optional[Dict[str, Any]]:
+    col = get_sav_collection()
+    return col.find_one(
+        {
+            "session_id": session_id,
+            "channel": channel,
+            "status": {"$in": ["open", "in_progress", "waiting_customer", "waiting_user"]},
+        },
+        sort=[("updated_at", -1)],
+    )

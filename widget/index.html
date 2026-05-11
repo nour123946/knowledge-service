@@ -83,6 +83,56 @@ body {
     animation: fadeIn 0.3s ease-in;
 }
 
+.msg-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.msg-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #64748b;
+    margin: 0 2px;
+}
+
+.msg-sender {
+    font-weight: 700;
+    color: #475569;
+}
+
+.msg-time {
+    margin-left: auto;
+    color: #94a3b8;
+}
+
+.msg-body {
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.image-message-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.image-upload-preview {
+    width: 220px;
+    max-width: 100%;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    object-fit: cover;
+}
+
+.image-upload-caption {
+    font-size: 12px;
+    color: #64748b;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
@@ -102,6 +152,96 @@ body {
     margin-right: auto;
     border-bottom-left-radius: 4px;
     border: 1px solid #e5e7eb;
+}
+
+.admin-human {
+    background: linear-gradient(135deg, #eef2ff 0%, #f8faff 100%);
+    color: #1e1b4b;
+    margin-right: auto;
+    border-bottom-left-radius: 6px;
+    border: 1px solid #c7d2fe;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.14);
+}
+
+.update {
+    background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+    color: #0f172a;
+    margin-right: auto;
+    border-bottom-left-radius: 8px;
+    border: 1px solid #dbeafe;
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.14);
+    font-weight: 500;
+    max-width: 92%;
+}
+
+.update.order {
+    border-color: #bfdbfe;
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.12);
+}
+
+.update.sav {
+    border-color: #a7f3d0;
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.12);
+}
+
+.update.message {
+    border-color: #c7d2fe;
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.12);
+}
+
+.system {
+    background: #f8fafc;
+    color: #0f172a;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 12px rgba(148, 163, 184, 0.12);
+    max-width: 88%;
+}
+
+.update-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.update-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.update-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.update-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.update-time {
+    margin-left: auto;
+    font-size: 11px;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.update-body {
+    font-size: 14px;
+    line-height: 1.45;
+    color: #0f172a;
 }
 
 .escalation {
@@ -186,6 +326,28 @@ body {
     background: white;
     padding: 12px;
     gap: 10px;
+    align-items: center;
+}
+
+.upload-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    color: #3730a3;
+    cursor: pointer;
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none;
+    padding: 0;
+}
+
+.upload-btn:hover {
+    transform: none;
+    box-shadow: 0 3px 10px rgba(99, 102, 241, 0.18);
 }
 
 input {
@@ -234,6 +396,8 @@ button:active {
 <div id="messages"></div>
 
 <div id="input-box">
+<input id="imageUploadInput" type="file" accept="image/jpeg,image/png" style="display:none" onchange="handleImageUpload(event)" />
+<button class="upload-btn" onclick="openImagePicker()" title="Upload product image">📷</button>
 <input id="userInput" placeholder="Posez votre question..." />
 <button onclick="sendMessage()">➤</button>
 </div>
@@ -252,6 +416,9 @@ if (!sessionId) {
 
 // ✅ conversation_state stable aussi
 let conversationState = localStorage.getItem("conversation_state") || "idle";
+let customerToken = localStorage.getItem("customer_token") || "";
+let customerCursor = localStorage.getItem("customer_cursor") || "";
+let customerPollingStarted = false;
 
 // ✅ sécurité: si on recharge la page, on repart en idle
 // (ça évite de rester bloqué sur choice_order_vs_sav:... ou collecting_phone)
@@ -282,12 +449,273 @@ function addMessage(text,cls){
     messages.scrollTop = messages.scrollHeight;
 }
 
+const seenEventKeys = new Set();
+
+function escapeForHtml(text) {
+    return String(text || "")
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatNotificationTime(timestamp) {
+    if (!timestamp) return "";
+    const dt = new Date(timestamp);
+    if (Number.isNaN(dt.getTime())) return "";
+    return dt.toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function buildEventKey(update) {
+    if (!update) return '';
+    return [update.kind || '', update.message_type || '', update.timestamp || '', update.message || '', update.raw_text || ''].join('|');
+}
+
+function parseDisplayTime(timestamp) {
+    const value = formatNotificationTime(timestamp);
+    return value || formatNotificationTime(new Date().toISOString());
+}
+
+function formatMessageBubble(text, sender, timestamp) {
+    return `
+        <div class="msg-shell">
+            <div class="msg-meta">
+                <span class="msg-sender">${escapeForHtml(sender || 'Message')}</span>
+                <span class="msg-time">${escapeForHtml(parseDisplayTime(timestamp))}</span>
+            </div>
+            <div class="msg-body">${text}</div>
+        </div>
+    `;
+}
+
+function formatImageBubble(dataUrl, filename, timestamp) {
+    return `
+        <div class="msg-shell">
+            <div class="msg-meta">
+                <span class="msg-sender">You</span>
+                <span class="msg-time">${escapeForHtml(parseDisplayTime(timestamp))}</span>
+            </div>
+            <div class="msg-body image-message-body">
+                <img class="image-upload-preview" src="${escapeForHtml(dataUrl)}" alt="${escapeForHtml(filename || 'uploaded image')}" />
+                <div class="image-upload-caption">${escapeForHtml(filename || 'Uploaded image')}</div>
+            </div>
+        </div>
+    `;
+}
+
+function notificationMeta(update) {
+    const kind = (update?.type || update?.kind || '').toLowerCase();
+    const status = (update?.status || '').toLowerCase();
+
+    if (kind === 'order' || kind === 'order_status') {
+        if (status === 'delivered') return { icon: '✅', title: 'Order update' };
+        if (status === 'cancelled' || status === 'canceled') return { icon: '❌', title: 'Order update' };
+        if (status === 'shipped') return { icon: '🚚', title: 'Order update' };
+        return { icon: '📦', title: 'Order update' };
+    }
+    if (kind === 'message' || kind === 'sav_message') return { icon: '💬', title: 'Support Team message' };
+    if (kind === 'sav' || kind === 'sav_status') {
+        if (status === 'resolved') return { icon: '✅', title: 'Support update' };
+        return { icon: '🛟', title: 'Support update' };
+    }
+    if (kind === 'human_handoff') return { icon: '🙋', title: 'Team handoff' };
+    return { icon: '🔔', title: 'Update' };
+}
+
+function addUpdateMessage(update){
+    const meta = notificationMeta(update || {});
+    const body = escapeForHtml((update && update.message) || "You have a new update.");
+    const timeText = formatNotificationTime(update && update.timestamp);
+    const timeNode = timeText ? `<span class="update-time">${escapeForHtml(timeText)}</span>` : '';
+    const updateKind = (update?.type || update?.kind || 'update').toLowerCase();
+
+    addMessage(`
+        <div class="update-card">
+            <div class="update-header">
+                <span class="update-icon">${meta.icon}</span>
+                <span class="update-title">${escapeForHtml(meta.title)}</span>
+                ${timeNode}
+            </div>
+            <div class="update-body">${body}</div>
+        </div>
+    `, `system update ${updateKind}`);
+}
+
+function addAdminSupportMessage(update) {
+    const rawText = (update && (update.raw_text || update.message || '') || '').trim();
+    if (!rawText) return;
+
+    const messageHtml = formatMessageBubble(
+        escapeForHtml(rawText),
+        '💬 Support Team',
+        update && update.timestamp
+    );
+    addMessage(messageHtml, 'admin-human');
+}
+
+function summarizeUpdate(update) {
+    if (!update) {
+        return {
+            kind: "update",
+            status: "",
+            timestamp: new Date().toISOString(),
+            message: "You have a new update.",
+        };
+    }
+
+    return {
+        id: update.id || '',
+        type: update.type || (update.kind === 'order_status' ? 'order' : (update.kind === 'sav_status' ? 'sav' : 'message')),
+        kind: update.kind || "update",
+        message_type: update.message_type || (update.kind === 'sav_message' ? 'public_reply' : 'system_update'),
+        raw_text: update.raw_text || '',
+        status: update.status || "",
+        timestamp: update.created_at || update.timestamp || new Date().toISOString(),
+        message: update.message || "You have a new update.",
+    };
+}
+
+async function pollCustomerUpdates() {
+    try {
+        const url = new URL("http://127.0.0.1:8000/customer/updates");
+        url.searchParams.set("session_id", sessionId);
+        url.searchParams.set("channel", "web");
+        if (customerCursor) {
+            url.searchParams.set("cursor", customerCursor);
+        }
+
+        const headers = {};
+        if (customerToken) {
+            headers["x-customer-token"] = customerToken;
+        }
+
+        let res = await fetch(url.toString(), { headers });
+
+        if (res.status === 401 && customerToken) {
+            customerToken = "";
+            localStorage.removeItem("customer_token");
+            res = await fetch(url.toString());
+        }
+
+        if (!res.ok) {
+            return;
+        }
+
+        const data = await res.json();
+        const updates = data.updates || [];
+        if (updates.length) {
+            updates.forEach(update => {
+                const normalized = summarizeUpdate(update);
+                const eventKey = normalized.id || buildEventKey(normalized);
+                if (eventKey && seenEventKeys.has(eventKey)) {
+                    return;
+                }
+                if (eventKey) {
+                    seenEventKeys.add(eventKey);
+                }
+
+                const isSupportReply = normalized.type === 'message' && ['public_reply', 'resolution', 'system_update'].includes(normalized.message_type);
+                if (isSupportReply) {
+                    addAdminSupportMessage(normalized);
+                    return;
+                }
+
+                addUpdateMessage(normalized);
+            });
+            customerCursor = data.next_cursor || customerCursor;
+            localStorage.setItem("customer_cursor", customerCursor);
+        }
+
+        if (data.next_cursor) {
+            customerCursor = data.next_cursor;
+            localStorage.setItem("customer_cursor", customerCursor);
+        }
+    } catch (error) {
+        console.error("Polling customer updates failed", error);
+    }
+}
+
+function startCustomerPolling() {
+    if (customerPollingStarted) return;
+    customerPollingStarted = true;
+    pollCustomerUpdates();
+    setInterval(pollCustomerUpdates, 10000);
+}
+
+function openImagePicker() {
+    const inputEl = document.getElementById('imageUploadInput');
+    if (inputEl) inputEl.click();
+}
+
+async function handleImageUpload(event) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+        addMessage(formatMessageBubble('❌ Please upload a JPG or PNG image.', 'System', new Date().toISOString()), 'system');
+        event.target.value = '';
+        return;
+    }
+
+    const previewDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+    });
+
+    addMessage(formatImageBubble(previewDataUrl, file.name, new Date().toISOString()), 'user');
+    addMessage(formatMessageBubble('📷 Image uploaded. Checking product...', 'System', new Date().toISOString()), 'system');
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('session_id', sessionId);
+        formData.append('channel', 'web');
+
+        const res = await fetch('http://127.0.0.1:8000/customer/upload-image', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!res.ok) {
+            addMessage(formatMessageBubble(`❌ Upload failed (Code: ${res.status})`, 'System', new Date().toISOString()), 'system');
+            event.target.value = '';
+            return;
+        }
+
+        const data = await res.json();
+        if (!data?.matched) {
+            addMessage(formatMessageBubble(data?.message || 'No matching product found.', 'Assistant', new Date().toISOString()), 'bot');
+            event.target.value = '';
+            return;
+        }
+
+        addMessage(formatMessageBubble(data.message || 'Product recognized.', 'Assistant', new Date().toISOString()), 'bot');
+        if (data?.current_product) {
+            localStorage.setItem('current_product', data.current_product);
+        }
+    } catch (error) {
+        console.error('Image upload failed', error);
+        addMessage(formatMessageBubble('❌ Error while uploading image.', 'System', new Date().toISOString()), 'system');
+    } finally {
+        event.target.value = '';
+    }
+}
+
 // ✅ NOUVELLE FONCTION : Ajouter message avec boutons de feedback
 function addMessageWithFeedback(text, cls, messageId, userMessage, botResponse, intent, confidence){
     const msgDiv = document.createElement('div');
     msgDiv.className = `msg ${cls}`;
     msgDiv.innerHTML = `
-        ${text}
+        ${formatMessageBubble(escapeForHtml(text), 'Assistant', new Date().toISOString())}
         <div class="feedback-container" id="feedback-${messageId}">
             <button class="feedback-btn positive" onclick="submitFeedback('${messageId}', 'positive', \`${escapeHtml(userMessage)}\`, \`${escapeHtml(botResponse)}\`, '${intent}', ${confidence})">
                 👍 Utile
@@ -358,7 +786,7 @@ async function sendMessage(){
 const text=input.value.trim();
 if(!text) return;
 
-addMessage(text,"user");
+addMessage(formatMessageBubble(escapeForHtml(text), "You", new Date().toISOString()),"user");
 input.value="";
 
 const loaderId="loader_" + Date.now();
@@ -387,7 +815,7 @@ conversation_state: conversationState  // 🆕 AJOUTÉ ICI
 document.getElementById(loaderId)?.remove();
 
 if(!res.ok){
-addMessage("❌ Erreur serveur (Code: " + res.status + ")","bot");
+addMessage(formatMessageBubble("❌ Erreur serveur (Code: " + res.status + ")", "System", new Date().toISOString()),"bot");
 return;
 }
 
@@ -431,23 +859,23 @@ if (needsEscalation) {
     console.log("⚠️ DISPLAYING ESCALATION BANNER");
     
     addMessage(
-        `<strong>⚠️ Connexion à un agent humain demandée</strong><br><br>
-        <strong>Raison :</strong> ${data.escalation_reason || "Demande non résolue"}<br><br>
-        Un agent vous contactera bientôt. 🙋‍♂️`,
+        `<strong>🙋 Team handoff</strong><br><br>
+        A team member will contact you shortly.`,
         "escalation"
     );
 }
 
 }catch(err){
 document.getElementById(loaderId)?.remove();
-addMessage("❌ Erreur connexion serveur","bot");
+addMessage(formatMessageBubble("❌ Erreur connexion serveur", "System", new Date().toISOString()),"bot");
 console.error("Error:",err);
 }
 }
 
 // ✅ Message de bienvenue
 window.addEventListener('load', () => {
-addMessage("👋 Bonjour ! Je suis votre assistant IA. Comment puis-je vous aider ?","bot");
+addMessage(formatMessageBubble("👋 Bonjour ! Je suis votre assistant IA. Comment puis-je vous aider ?", "Assistant", new Date().toISOString()),"bot");
+startCustomerPolling();
 });
 </script>
 
