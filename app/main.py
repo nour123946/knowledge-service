@@ -54,7 +54,7 @@ from app.utils.stop_intent import is_stop_intent
 from app.utils.product_parser import parse_business_data, get_product_by_name, get_available_products
 import uuid
 from app.routers import analytics
-
+from app.core.client_manager import load_client_config, ClientConfigError
 # Configure logger
 logging.basicConfig(
     level=logging.INFO,
@@ -958,7 +958,10 @@ def track_product_mention(query: str, response: str, session_id: str, intent: st
                 add_product_candidate(session_id, product_name, source="response", confidence=0.88)
 
 @app.post("/ask")
-def ask(request: AskRequest):
+def ask(
+    request: AskRequest,
+    x_client_id: str = Header(...)
+):
     """
     ASSISTANT BUSINESS INTELLIGENT - MULTI-FONCTIONNEL
     """
@@ -968,7 +971,17 @@ def ask(request: AskRequest):
     channel = request.channel
     low_conf_history = request.low_conf_history
     conversation_state = request.conversation_state
+        # 🔥 LOAD CLIENT CONFIG
+    try:
+        client_config = load_client_config(x_client_id)
 
+    except ClientConfigError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    client_features = client_config.get("features", {})
     # 🔥 ÉTAPE 1 : VÉRIFIER L'ESCALATION EN PREMIER (PRIORITÉ ABSOLUE)
     from app.core.escalation import detect_frustration, detect_human_request
 
@@ -1571,7 +1584,47 @@ def ask(request: AskRequest):
             f"🧭 ROUTER session={session_id} state={state} route={route} "
             f"confidence={route_confidence:.2f} reason={route_reason}"
         )
+                # 🔥 FEATURE GATING
 
+        if route == "order" and not client_features.get("orders", False):
+
+            logger.info(f"⛔ ORDER disabled for client: {x_client_id}")
+
+            return {
+                "message_id": str(uuid.uuid4()),
+                "answer": "Je peux vous aider pour la recherche de prestataires et les questions d'information.",
+                "final_answer": "Je peux vous aider pour la recherche de prestataires et les questions d'information.",
+                "intent": "info",
+                "route": "info",
+                "confidence": 0.95,
+                "confidence_score": 0.95,
+                "should_escalate": False,
+                "needs_human_agent": False,
+                "session_id": session_id,
+                "conversation_state": "idle",
+                "is_order_flow": False,
+                "retrieved_chunks": 0
+            }
+
+        if route == "sav" and not client_features.get("sav", False):
+
+            logger.info(f"⛔ SAV disabled for client: {x_client_id}")
+
+            return {
+                "message_id": str(uuid.uuid4()),
+                "answer": "Je peux vous aider pour la recherche de prestataires et les questions d'information.",
+                "final_answer": "Je peux vous aider pour la recherche de prestataires et les questions d'information.",
+                "intent": "info",
+                "route": "info",
+                "confidence": 0.95,
+                "confidence_score": 0.95,
+                "should_escalate": False,
+                "needs_human_agent": False,
+                "session_id": session_id,
+                "conversation_state": "idle",
+                "is_order_flow": False,
+                "retrieved_chunks": 0
+            }
         if route == "human":
             escalation_answer = "Je comprends. Un agent va vous contacter très bientôt."
 

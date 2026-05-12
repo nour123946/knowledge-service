@@ -1,0 +1,38 @@
+{
+  "client_id": "annuaire",
+  "name": "Client Annuaire",
+
+  "features": {
+    "rag": true,
+    "directory": true,
+    "orders": false,
+    "sav": false
+  },
+
+  "supabase": {
+    "url_env": "ANNUAIRE_SUPABASE_URL",
+    "anon_key_env": "ANNUAIRE_SUPABASE_ANON_KEY",
+
+    "tables": {
+      "service_providers": "service_providers"
+    }
+  },
+
+  "directory_rules": {
+    "default_limit": 8,
+    "verified_only": false,
+    "require_city": false,
+
+    "fields_to_show": [
+      "name",
+      "city",
+      "phone",
+      "whatsapp",
+      "address"
+    ]
+  },
+
+  "rag_rules": {
+    "top_k": 5
+  }
+}

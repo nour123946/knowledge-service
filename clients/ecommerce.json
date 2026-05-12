@@ -1,0 +1,10 @@
+{
+  "client_id": "ecommerce",
+  "name": "Client Ecommerce",
+  "features": {
+    "rag": true,
+    "directory": false,
+    "orders": true,
+    "sav": true
+  }
+}
